@@ -5,7 +5,14 @@ MAIN := ./cmd/server/main.go
 
 ## Run the app in dev mode
 dev:
-	@echo "Running $(APP_NAME) in dev mode..."
+	@if ! command -v air >/dev/null 2>&1 ; then \
+		echo "Installing 'air'..."; \
+		go install github.com/cosmtrek/air@latest || { \
+			echo "Failed to install air. Check your GOPATH or network."; \
+			exit 1; \
+		}; \
+		echo "✅ 'air' installed successfully."; \
+	fi
 	air
 
 ## Run the app
