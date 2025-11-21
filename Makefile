@@ -1,51 +1,55 @@
 APP_NAME := go-book-crud-gin
 MAIN := ./cmd/server/main.go
 
-.PHONY: run build test tidy fmt lint clean
+DOCKER_IMAGE_DEV := $(APP_NAME)-dev
+DOCKER_IMAGE_PROD := $(APP_NAME)
+DOCKER_PORT := 8080
 
-## Run the app in dev mode
+.PHONY: dev run build test tidy fmt lint clean docker-clean
+
 dev:
-	@if ! command -v air >/dev/null 2>&1 ; then \
-		echo "Installing 'air'..."; \
-		go install github.com/cosmtrek/air@latest || { \
-			echo "Failed to install air. Check your GOPATH or network."; \
-			exit 1; \
-		}; \
-		echo "✅ 'air' installed successfully."; \
-	fi
-	air
+	@echo "Building dev image $(DOCKER_IMAGE_DEV)..."
+	docker build --target dev -t $(DOCKER_IMAGE_DEV) .
+	@echo "Starting dev container with hot reload on port $(DOCKER_PORT)..."
+	docker run --rm -it \
+		-p $(DOCKER_PORT):$(DOCKER_PORT) \
+		-v "$$PWD":/app \
+		$(DOCKER_IMAGE_DEV)
 
-## Run the app
 run:
-	@echo "Running $(APP_NAME)..."
-	go run $(MAIN)
+	@echo "Building prod image $(DOCKER_IMAGE_PROD)..."
+	docker build --target prod -t $(DOCKER_IMAGE_PROD) .
+	@echo "Running $(DOCKER_IMAGE_PROD) on port $(DOCKER_PORT)..."
+	docker run --rm -p $(DOCKER_PORT):$(DOCKER_PORT) $(DOCKER_IMAGE_PROD)
 
-## Build the binary
 build:
-	@echo "Building $(APP_NAME)..."
-	go build -o bin/$(APP_NAME) $(MAIN)
+	@echo "Building production image $(DOCKER_IMAGE_PROD)..."
+	docker build --target prod -t $(DOCKER_IMAGE_PROD) .
 
-## Run tests
 test:
-	@echo "Running tests..."
-	go test ./... -v
+	@echo "Running tests in Docker..."
+	docker run --rm \
+		-v "$$PWD":/app \
+		-w /app \
+		golang:1.25.4-bookworm \
+		go test ./... -v
 
-## Format code
 fmt:
 	@echo "Formatting..."
 	go fmt ./...
 
-## Run 'go vet' (lightweight static analysis)
 lint:
 	@echo "Linting..."
 	go vet ./...
 
-## Clean build artifacts
 clean:
 	@echo "Cleaning..."
 	rm -rf bin/
 
-## Keep go.mod tidy
 tidy:
 	@echo "Tidying..."
 	go mod tidy
+
+docker-clean:
+	@echo "Removing Docker images..."
+	-docker rmi $(DOCKER_IMAGE_DEV) $(DOCKER_IMAGE_PROD) 2>/dev/null || true
