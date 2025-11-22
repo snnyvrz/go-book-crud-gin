@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "books-api",
+  "root": "apps/books-api",
+  "sourceRoot": "apps/books-api",
+  "projectType": "application",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/books-api && make dev"
+      }
+    }
+  }
+}
