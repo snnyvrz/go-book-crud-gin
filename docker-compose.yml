@@ -8,8 +8,8 @@ services:
       - .env
     environment:
       - TZ=${TZ}
-      - DB_HOST=postgres
-      - DB_PORT=5432
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASS}
       - DB_NAME=${DB_NAME}
@@ -28,7 +28,7 @@ services:
       - POSTGRES_PASSWORD=${DB_PASS}
       - POSTGRES_DB=${DB_NAME}
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
 
