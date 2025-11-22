@@ -60,6 +60,13 @@ func toBookResponse(b model.Book) BookResponse {
 	}
 }
 
+func writeError(c *gin.Context, status int, code, message string) {
+	c.AbortWithStatusJSON(status, validation.ErrorResponse{
+		Code:    code,
+		Message: message,
+		Errors:  nil,
+	})
+}
 func (h *BookHandler) CreateBook(c *gin.Context) {
 	var req CreateBookRequest
 	if !validation.BindAndValidateJSON(c, &req) {
@@ -80,9 +87,10 @@ func (h *BookHandler) CreateBook(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&book).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to create book",
-		})
+		writeError(c, http.StatusInternalServerError,
+			"BOOK_CREATE_FAILED",
+			"failed to create book",
+		)
 		return
 	}
 
@@ -93,9 +101,10 @@ func (h *BookHandler) ListBooks(c *gin.Context) {
 	var books []model.Book
 
 	if err := h.db.Find(&books).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to fetch books",
-		})
+		writeError(c, http.StatusInternalServerError,
+			"BOOK_LIST_FAILED",
+			"failed to fetch books",
+		)
 		return
 	}
 
@@ -112,9 +121,10 @@ func (h *BookHandler) GetBookByID(c *gin.Context) {
 
 	bookID, err := uuid.Parse(idParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid book id",
-		})
+		writeError(c, http.StatusBadRequest,
+			"INVALID_BOOK_ID",
+			"invalid book id",
+		)
 		return
 	}
 
@@ -122,15 +132,17 @@ func (h *BookHandler) GetBookByID(c *gin.Context) {
 
 	if err := h.db.First(&book, "id = ?", bookID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "book not found",
-			})
+			writeError(c, http.StatusNotFound,
+				"BOOK_NOT_FOUND",
+				"book not found",
+			)
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to fetch book",
-		})
+		writeError(c, http.StatusInternalServerError,
+			"BOOK_FETCH_FAILED",
+			"failed to fetch book",
+		)
 		return
 	}
 

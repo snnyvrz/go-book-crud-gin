@@ -15,12 +15,14 @@ type FieldError struct {
 }
 
 type ErrorResponse struct {
+	Code    string       `json:"code"`
 	Message string       `json:"message"`
-	Errors  []FieldError `json:"errors"`
+	Errors  []FieldError `json:"errors,omitempty"`
 }
 
 func BindAndValidateJSON(c *gin.Context, dst any) bool {
 	if err := c.ShouldBindJSON(dst); err != nil {
+		// Validation errors (binding + validation)
 		if verrs, ok := err.(validator.ValidationErrors); ok {
 			resp := formatValidationErrors(verrs)
 			c.AbortWithStatusJSON(http.StatusBadRequest, resp)
@@ -28,6 +30,7 @@ func BindAndValidateJSON(c *gin.Context, dst any) bool {
 		}
 
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse{
+			Code:    "INVALID_REQUEST_BODY",
 			Message: "invalid request body",
 			Errors: []FieldError{
 				{
@@ -56,6 +59,7 @@ func formatValidationErrors(verrs validator.ValidationErrors) ErrorResponse {
 	}
 
 	return ErrorResponse{
+		Code:    "VALIDATION_ERROR",
 		Message: "validation failed",
 		Errors:  fields,
 	}
@@ -72,6 +76,5 @@ func buildMessage(field string, fe validator.FieldError) string {
 	if fe.Tag() == "required" {
 		return field + " is required"
 	}
-
 	return field + " is invalid (" + fe.Tag() + ")"
 }
