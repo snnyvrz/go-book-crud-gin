@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/snnyvrz/go-book-crud-gin/internal/model"
+	"github.com/snnyvrz/go-book-crud-gin/internal/validation"
 	"gorm.io/gorm"
 )
 
@@ -59,11 +60,7 @@ func toBookResponse(b model.Book) BookResponse {
 
 func (h *BookHandler) CreateBook(c *gin.Context) {
 	var req CreateBookRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "invalid request body",
-			"details": err.Error(),
-		})
+	if !validation.BindAndValidateJSON(c, &req) {
 		return
 	}
 
