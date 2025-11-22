@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -39,6 +40,7 @@ type BookResponse struct {
 func (h *BookHandler) RegisterRoutes(e *gin.Engine) {
 	e.POST("/books", h.CreateBook)
 	e.GET("/books", h.ListBooks)
+	e.GET("/books/:id", h.GetBookByID)
 }
 
 func toBookResponse(b model.Book) BookResponse {
@@ -103,4 +105,34 @@ func (h *BookHandler) ListBooks(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, responses)
+}
+
+func (h *BookHandler) GetBookByID(c *gin.Context) {
+	idParam := c.Param("id")
+
+	bookID, err := uuid.Parse(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid book id",
+		})
+		return
+	}
+
+	var book model.Book
+
+	if err := h.db.First(&book, "id = ?", bookID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "book not found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to fetch book",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, toBookResponse(book))
 }
