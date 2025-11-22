@@ -1,5 +1,12 @@
 .vscode/
 tmp/
 bin/
+node_modules/
 
 .env
+
+
+
+.nx/cache
+.nx/workspace-data
+.github/instructions/nx.instructions.md
