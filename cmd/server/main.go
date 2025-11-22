@@ -1,13 +1,24 @@
 package main
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/snnyvrz/go-book-crud-gin/internal/config"
 	"github.com/snnyvrz/go-book-crud-gin/internal/db"
 	"github.com/snnyvrz/go-book-crud-gin/internal/handler"
 	"github.com/snnyvrz/go-book-crud-gin/internal/model"
 )
 
+const appVersion = "0.1.0"
+
 func main() {
+	startTime := time.Now()
+
+	cfg := config.Load()
+
+	gin.SetMode(cfg.GinMode)
+
 	e := gin.Default()
 
 	e.SetTrustedProxies([]string{
@@ -17,12 +28,11 @@ func main() {
 
 	database := db.Connect()
 
-	err := database.AutoMigrate(&model.Book{})
-	if err != nil {
+	if err := database.AutoMigrate(&model.Book{}); err != nil {
 		panic(err)
 	}
 
-	healthHandler := handler.NewHealthHandler()
+	healthHandler := handler.NewHealthHandler(database, startTime, appVersion)
 	healthHandler.RegisterRoutes(e)
 
 	e.Run(":8080")
