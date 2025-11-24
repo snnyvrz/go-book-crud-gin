@@ -9,6 +9,7 @@ tmp/
 coverage/
 
 .env
+.env.prod
 
 .nx/cache
 .nx/workspace-data
