@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -29,15 +30,11 @@ func Load() *Config {
 		DBUser:    getenv("DB_USER", "postgres"),
 		DBPass:    getenv("DB_PASS", ""),
 		DBName:    getenv("DB_NAME", "postgres"),
-		DBSSLMode: getenv("DB_SSLMODE", ""),
+		DBSSLMode: "disable",
 	}
 
-	if cfg.DBSSLMode == "" {
-		if cfg.GinMode == "release" {
-			cfg.DBSSLMode = "require"
-		} else {
-			cfg.DBSSLMode = "disable"
-		}
+	if strings.Contains(cfg.DBHost, "rds.amazonaws.com") {
+		cfg.DBSSLMode = "require"
 	}
 
 	return cfg

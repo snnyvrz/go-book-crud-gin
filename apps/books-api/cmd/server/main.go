@@ -68,5 +68,5 @@ func main() {
 
 	e.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	e.Run(":8080")
+	e.Run("0.0.0.0:8080")
 }
