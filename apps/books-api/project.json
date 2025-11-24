@@ -26,7 +26,7 @@
         "test": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "go test -coverprofile=coverage/coverage.out ./...",
+                "command": "mkdir -p coverage && go test -coverprofile=coverage/coverage.out ./...",
                 "cwd": "apps/books-api"
             },
             "cache": false
@@ -34,7 +34,7 @@
         "coverage": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "mkdir -p coverage && go tool cover -html=coverage/coverage.out -o coverage/coverage.html",
+                "command": "go tool cover -html=coverage/coverage.out -o coverage/coverage.html",
                 "cwd": "apps/books-api"
             },
             "dependsOn": ["test"],
