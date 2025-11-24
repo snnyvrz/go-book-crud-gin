@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/handler"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/repository"
@@ -92,6 +93,79 @@ func newTestServer() *httptest.Server {
 	return httptest.NewServer(testRouter)
 }
 
+func createTestAuthor(t *testing.T, client *http.Client, baseURL string, name, bio string) string {
+	t.Helper()
+
+	reqBody := map[string]any{
+		"name": name,
+		"bio":  bio,
+	}
+
+	b, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal author request: %v", err)
+	}
+
+	resp, err := client.Post(baseURL+"/api/authors", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatalf("failed to create author: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 when creating author, got %d", resp.StatusCode)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode author response: %v", err)
+	}
+
+	id, ok := body["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("expected author id in response, got %#v", body["id"])
+	}
+
+	return id
+}
+
+func createTestBook(t *testing.T, client *http.Client, baseURL, authorID, title, desc string) string {
+	t.Helper()
+
+	reqBody := map[string]any{
+		"title":       title,
+		"author_id":   authorID,
+		"description": desc,
+	}
+
+	b, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal book request: %v", err)
+	}
+
+	resp, err := client.Post(baseURL+"/api/books", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatalf("failed to create book: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 when creating book, got %d", resp.StatusCode)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode book response: %v", err)
+	}
+
+	id, ok := body["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("expected book id in response, got %#v", body["id"])
+	}
+
+	return id
+}
+
 func TestCreateBookAndFetchIt_BackendIntegration(t *testing.T) {
 	resetDB(t)
 
@@ -159,5 +233,352 @@ func TestCreateBookAndFetchIt_BackendIntegration(t *testing.T) {
 	}
 	if author["id"] != authorID {
 		t.Errorf("expected author.id=%s, got %v", authorID, author["id"])
+	}
+}
+
+func TestCreateAuthor_Integration(t *testing.T) {
+	resetDB(t)
+
+	srv := newTestServer()
+	defer srv.Close()
+
+	client := srv.Client()
+
+	t.Run("success", func(t *testing.T) {
+		reqBody := map[string]any{
+			"name": "Robert C. Martin",
+			"bio":  "Uncle Bob",
+		}
+		b, _ := json.Marshal(reqBody)
+
+		resp, err := client.Post(srv.URL+"/api/authors", "application/json", bytes.NewReader(b))
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 201, got %d", resp.StatusCode)
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+
+		if body["name"] != "Robert C. Martin" {
+			t.Errorf("expected name %q, got %v", "Robert C. Martin", body["name"])
+		}
+		if body["bio"] != "Uncle Bob" {
+			t.Errorf("expected bio %q, got %v", "Uncle Bob", body["bio"])
+		}
+		if body["id"] == "" {
+			t.Errorf("expected non-empty id, got %v", body["id"])
+		}
+	})
+
+	t.Run("missing_name", func(t *testing.T) {
+		reqBody := map[string]any{
+			"bio": "Nameless author",
+		}
+		b, _ := json.Marshal(reqBody)
+
+		resp, err := client.Post(srv.URL+"/api/authors", "application/json", bytes.NewReader(b))
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 400 || resp.StatusCode >= 500 {
+			t.Fatalf("expected 4xx, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("empty_body", func(t *testing.T) {
+		resp, err := client.Post(srv.URL+"/api/authors", "application/json", bytes.NewReader([]byte(`{}`)))
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 400 || resp.StatusCode >= 500 {
+			t.Fatalf("expected 4xx, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestGetAuthor_Integration(t *testing.T) {
+	resetDB(t)
+
+	srv := newTestServer()
+	defer srv.Close()
+
+	client := srv.Client()
+
+	// Arrange: create an author
+	authorID := createTestAuthor(t, client, srv.URL, "Kent Beck", "TDD guy")
+
+	t.Run("found", func(t *testing.T) {
+		resp, err := client.Get(srv.URL + "/api/authors/" + authorID)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+
+		if body["id"] != authorID {
+			t.Errorf("expected id %s, got %v", authorID, body["id"])
+		}
+		if body["name"] != "Kent Beck" {
+			t.Errorf("expected name Kent Beck, got %v", body["name"])
+		}
+	})
+
+	t.Run("invalid_uuid", func(t *testing.T) {
+		resp, err := client.Get(srv.URL + "/api/authors/not-a-uuid")
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 400 || resp.StatusCode >= 500 {
+			t.Fatalf("expected 4xx for invalid uuid, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		randomID := uuid.NewString()
+		resp, err := client.Get(srv.URL + "/api/authors/" + randomID)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound && (resp.StatusCode < 400 || resp.StatusCode >= 500) {
+			t.Fatalf("expected 404 or other 4xx for missing author, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestCreateBook_Integration(t *testing.T) {
+	resetDB(t)
+
+	srv := newTestServer()
+	defer srv.Close()
+
+	client := srv.Client()
+
+	authorID := createTestAuthor(t, client, srv.URL, "Robert C. Martin", "Uncle Bob")
+
+	type testCase struct {
+		name            string
+		payload         map[string]any
+		expect2xx       bool
+		expectClientErr bool
+	}
+
+	cases := []testCase{
+		{
+			name: "valid_book",
+			payload: map[string]any{
+				"title":       "Clean Code",
+				"author_id":   authorID,
+				"description": "A handbook of agile software craftsmanship",
+			},
+			expect2xx: true,
+		},
+		{
+			name: "missing_title",
+			payload: map[string]any{
+				"author_id": authorID,
+			},
+			expectClientErr: true,
+		},
+		{
+			name: "missing_author_id",
+			payload: map[string]any{
+				"title": "Orphan Book",
+			},
+			expectClientErr: true,
+		},
+		{
+			name: "invalid_author_id_format",
+			payload: map[string]any{
+				"title":     "Bad Author",
+				"author_id": "not-a-uuid",
+			},
+			expectClientErr: true,
+		},
+		{
+			name: "nonexistent_author",
+			payload: map[string]any{
+				"title":     "Ghost Author Book",
+				"author_id": uuid.NewString(),
+			},
+			expectClientErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, _ := json.Marshal(tc.payload)
+			resp, err := client.Post(srv.URL+"/api/books", "application/json", bytes.NewReader(b))
+			if err != nil {
+				t.Fatalf("request failed: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if tc.expect2xx {
+				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+					t.Fatalf("expected 2xx, got %d", resp.StatusCode)
+				}
+			}
+
+			if tc.expectClientErr {
+				if resp.StatusCode < 400 || resp.StatusCode >= 500 {
+					t.Fatalf("expected 4xx, got %d", resp.StatusCode)
+				}
+			}
+		})
+	}
+}
+
+func TestCreateBookAndFetchIt_Integration(t *testing.T) {
+	resetDB(t)
+
+	srv := newTestServer()
+	defer srv.Close()
+	client := srv.Client()
+
+	// Arrange
+	authorID := createTestAuthor(t, client, srv.URL, "Robert C. Martin", "Uncle Bob")
+	bookID := createTestBook(t, client, srv.URL, authorID, "Clean Code", "A classic")
+
+	// Act
+	resp, err := client.Get(srv.URL + "/api/books/" + bookID)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+
+	if body["id"] != bookID {
+		t.Errorf("expected id %s, got %v", bookID, body["id"])
+	}
+	if body["title"] != "Clean Code" {
+		t.Errorf("expected title Clean Code, got %v", body["title"])
+	}
+
+	// If your response includes a nested "author" object, assert its id:
+	if authorVal, ok := body["author"]; ok && authorVal != nil {
+		if authorObj, ok := authorVal.(map[string]any); ok {
+			if authorObj["id"] != authorID {
+				t.Errorf("expected author.id=%s, got %v", authorID, authorObj["id"])
+			}
+		}
+	}
+}
+
+func TestGetBook_Errors_Integration(t *testing.T) {
+	resetDB(t)
+
+	srv := newTestServer()
+	defer srv.Close()
+	client := srv.Client()
+
+	t.Run("invalid_uuid", func(t *testing.T) {
+		resp, err := client.Get(srv.URL + "/api/books/not-a-uuid")
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 400 || resp.StatusCode >= 500 {
+			t.Fatalf("expected 4xx, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		resp, err := client.Get(srv.URL + "/api/books/" + uuid.NewString())
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound && (resp.StatusCode < 400 || resp.StatusCode >= 500) {
+			t.Fatalf("expected 404 or other 4xx, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestGetAuthorWithBooks_Integration(t *testing.T) {
+	resetDB(t)
+
+	srv := newTestServer()
+	defer srv.Close()
+	client := srv.Client()
+
+	authorID := createTestAuthor(t, client, srv.URL, "Martin Fowler", "Refactoring")
+	book1 := createTestBook(t, client, srv.URL, authorID, "Refactoring", "Improving the design of existing code")
+	book2 := createTestBook(t, client, srv.URL, authorID, "Patterns of Enterprise Application Architecture", "PoEAA")
+
+	resp, err := client.Get(srv.URL + "/api/authors/" + authorID)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var body struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Books []struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"books"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+
+	if body.ID != authorID {
+		t.Errorf("expected author id %s, got %s", authorID, body.ID)
+	}
+	if len(body.Books) != 2 {
+		t.Fatalf("expected 2 books, got %d", len(body.Books))
+	}
+
+	ids := map[string]bool{
+		book1: false,
+		book2: false,
+	}
+	for _, b := range body.Books {
+		if _, ok := ids[b.ID]; ok {
+			ids[b.ID] = true
+		}
+	}
+	for id, seen := range ids {
+		if !seen {
+			t.Errorf("expected book id %s in response", id)
+		}
 	}
 }

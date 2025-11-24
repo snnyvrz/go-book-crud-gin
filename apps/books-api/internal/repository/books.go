@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
@@ -19,6 +20,8 @@ type BookRepository interface {
 type GormBookRepository struct {
 	db *gorm.DB
 }
+
+var ErrAuthorNotFound = errors.New("author not found")
 
 func NewGormBookRepository(db *gorm.DB) *GormBookRepository {
 	return &GormBookRepository{db: db}

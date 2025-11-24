@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/repository"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/validation"
@@ -140,6 +141,17 @@ func (h *BookHandler) CreateBook(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	if err := h.repo.Create(ctx, &book); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == "23503" && pgErr.ConstraintName == "fk_authors_books" {
+				writeError(c, http.StatusBadRequest,
+					"AUTHOR_NOT_FOUND",
+					"author does not exist",
+				)
+				return
+			}
+		}
+
 		writeError(c, http.StatusInternalServerError,
 			"BOOK_CREATE_FAILED",
 			"failed to create book",
