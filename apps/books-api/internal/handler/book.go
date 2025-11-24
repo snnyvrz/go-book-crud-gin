@@ -20,31 +20,27 @@ func NewBookHandler(db *gorm.DB) *BookHandler {
 	return &BookHandler{db: db}
 }
 
-// CreateBookRequest represents the payload for creating a book.
 type CreateBookRequest struct {
 	Title       string      `json:"title" binding:"required"`
-	Author      string      `json:"author" binding:"required"`
+	AuthorID    uuid.UUID   `json:"author_id" binding:"required,uuid4"`
 	Description string      `json:"description"`
 	PublishedAt *model.Date `json:"published_at"`
 }
 
-// UpdateBookRequest represents the payload for partially updating a book.
 type UpdateBookRequest struct {
 	Title       *string     `json:"title" binding:"omitempty,min=1"`
-	Author      *string     `json:"author" binding:"omitempty,min=1"`
+	AuthorID    *uuid.UUID  `json:"author_id" binding:"omitempty,uuid4"`
 	Description *string     `json:"description" binding:"omitempty,max=2000"`
 	PublishedAt *model.Date `json:"published_at"`
 }
-
-// BookResponse is the response representation of a book.
 type BookResponse struct {
-	ID          uuid.UUID   `json:"id"`
-	Title       string      `json:"title"`
-	Author      string      `json:"author"`
-	Description string      `json:"description"`
-	PublishedAt *model.Date `json:"published_at,omitempty"`
-	CreatedAt   model.Date  `json:"created_at"`
-	UpdatedAt   model.Date  `json:"updated_at"`
+	ID          uuid.UUID      `json:"id"`
+	Title       string         `json:"title"`
+	Author      AuthorResponse `json:"author"`
+	Description string         `json:"description"`
+	PublishedAt *model.Date    `json:"published_at,omitempty"`
+	CreatedAt   model.Date     `json:"created_at"`
+	UpdatedAt   model.Date     `json:"updated_at"`
 }
 
 func (h *BookHandler) RegisterRoutes(r *gin.RouterGroup) {
@@ -65,9 +61,12 @@ func toBookResponse(b model.Book) BookResponse {
 	}
 
 	return BookResponse{
-		ID:          b.ID,
-		Title:       b.Title,
-		Author:      b.Author,
+		ID:    b.ID,
+		Title: b.Title,
+		Author: AuthorResponse{
+			ID:   b.Author.ID,
+			Name: b.Author.Name,
+		},
 		Description: b.Description,
 		PublishedAt: pub,
 		CreatedAt:   model.Date{Time: b.CreatedAt},
@@ -108,7 +107,7 @@ func (h *BookHandler) CreateBook(c *gin.Context) {
 
 	book := model.Book{
 		Title:       req.Title,
-		Author:      req.Author,
+		AuthorID:    req.AuthorID,
 		Description: req.Description,
 		PublishedAt: pubAt,
 	}
@@ -120,6 +119,8 @@ func (h *BookHandler) CreateBook(c *gin.Context) {
 		)
 		return
 	}
+
+	h.db.Preload("Author").First(&book, "id = ?", book.ID)
 
 	c.JSON(http.StatusCreated, toBookResponse(book))
 }
@@ -135,7 +136,7 @@ func (h *BookHandler) CreateBook(c *gin.Context) {
 func (h *BookHandler) ListBooks(c *gin.Context) {
 	var books []model.Book
 
-	if err := h.db.Find(&books).Error; err != nil {
+	if err := h.db.Preload("Author").Find(&books).Error; err != nil {
 		writeError(c, http.StatusInternalServerError,
 			"BOOK_LIST_FAILED",
 			"failed to fetch books",
@@ -176,7 +177,7 @@ func (h *BookHandler) GetBookByID(c *gin.Context) {
 
 	var book model.Book
 
-	if err := h.db.First(&book, "id = ?", bookID).Error; err != nil {
+	if err := h.db.Preload("Author").First(&book, "id = ?", bookID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			writeError(c, http.StatusNotFound,
 				"BOOK_NOT_FOUND",
@@ -242,7 +243,7 @@ func (h *BookHandler) UpdateBook(c *gin.Context) {
 		return
 	}
 
-	if req.Title == nil && req.Author == nil &&
+	if req.Title == nil && req.AuthorID == nil &&
 		req.Description == nil && req.PublishedAt == nil {
 		writeError(c, http.StatusBadRequest,
 			"NO_FIELDS_TO_UPDATE",
@@ -254,8 +255,8 @@ func (h *BookHandler) UpdateBook(c *gin.Context) {
 	if req.Title != nil {
 		book.Title = *req.Title
 	}
-	if req.Author != nil {
-		book.Author = *req.Author
+	if req.AuthorID != nil {
+		book.AuthorID = *req.AuthorID
 	}
 	if req.Description != nil {
 		book.Description = *req.Description
@@ -273,6 +274,14 @@ func (h *BookHandler) UpdateBook(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError,
 			"BOOK_UPDATE_FAILED",
 			"failed to update book",
+		)
+		return
+	}
+
+	if err := h.db.Preload("Author").First(&book, "id = ?", book.ID).Error; err != nil {
+		writeError(c, http.StatusInternalServerError,
+			"BOOK_FETCH_FAILED",
+			"failed to fetch updated book",
 		)
 		return
 	}

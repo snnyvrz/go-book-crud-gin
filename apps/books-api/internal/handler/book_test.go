@@ -3,63 +3,27 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/validation"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-func setupTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-
-	dsn := "file:testdb_" + uuid.New().String() + "?mode=memory&cache=shared"
-
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("failed to connect to test database: %v", err)
-	}
-
-	if err := db.AutoMigrate(&model.Book{}); err != nil {
-		t.Fatalf("failed to migrate test database: %v", err)
-	}
-
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatalf("failed to get sql.DB from gorm: %v", err)
-	}
-
-	t.Cleanup(func() {
-		_ = sqlDB.Close()
-	})
-
-	return db
-}
-
-func setupRouter(db *gorm.DB) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	r := gin.Default()
-
-	h := NewBookHandler(db)
-
-	h.RegisterRoutes(r.Group(""))
-
-	return r
-}
 
 func TestCreateBook_Success(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
+	author := seedAuthor(t, db, "Evans")
+
 	body := CreateBookRequest{
 		Title:       "Clean Code",
-		Author:      "Robert C. Martin",
+		AuthorID:    author.ID,
 		Description: "A handbook of Agile software craftsmanship",
 	}
 
@@ -89,9 +53,14 @@ func TestCreateBook_Success(t *testing.T) {
 	if resp.Title != body.Title {
 		t.Errorf("expected title %q, got %q", body.Title, resp.Title)
 	}
-	if resp.Author != body.Author {
-		t.Errorf("expected author %q, got %q", body.Author, resp.Author)
+
+	if resp.Author.ID != author.ID {
+		t.Errorf("expected author ID %q, got %q", author.ID, resp.Author.ID)
 	}
+	if resp.Author.Name != author.Name {
+		t.Errorf("expected author name %q, got %q", author.Name, resp.Author.Name)
+	}
+
 	if resp.PublishedAt != nil {
 		t.Errorf("expected PublishedAt to be nil when not provided")
 	}
@@ -100,20 +69,29 @@ func TestCreateBook_Success(t *testing.T) {
 	if err := db.First(&stored, "id = ?", resp.ID).Error; err != nil {
 		t.Fatalf("expected book in db, got error: %v", err)
 	}
+
+	if stored.AuthorID != author.ID {
+		t.Errorf("expected stored AuthorID %q, got %q", author.ID, stored.AuthorID)
+	}
 }
 
 func TestCreateBook_SuccessWithPublishedAt(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
+	author := seedAuthor(t, db, "Evans")
+
 	payload := map[string]any{
-		"title":        "DDD",
-		"author":       "Eric Evans",
-		"description":  "Blue book",
-		"published_at": "2003-08-30",
+		"title":        "Clean Code",
+		"author_id":    author.ID.String(),
+		"description":  "A handbook of Agile software craftsmanship",
+		"published_at": "2020-01-01",
 	}
 
-	b, _ := json.Marshal(payload)
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal body: %v", err)
+	}
 
 	req, _ := http.NewRequest(http.MethodPost, "/books", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
@@ -131,11 +109,18 @@ func TestCreateBook_SuccessWithPublishedAt(t *testing.T) {
 	}
 
 	if resp.PublishedAt == nil {
-		t.Fatalf("expected PublishedAt to be set")
+		t.Fatalf("expected PublishedAt to be non-nil")
+	}
+	if got := resp.PublishedAt.Time.Format("2006-01-02"); got != "2020-01-01" {
+		t.Errorf("expected PublishedAt 2020-01-01, got %s", got)
 	}
 
-	if resp.PublishedAt.Time.IsZero() {
-		t.Errorf("expected non-zero PublishedAt time")
+	var stored model.Book
+	if err := db.First(&stored, "id = ?", resp.ID).Error; err != nil {
+		t.Fatalf("expected book in db, got error: %v", err)
+	}
+	if stored.PublishedAt == nil || stored.PublishedAt.Format("2006-01-02") != "2020-01-01" {
+		t.Errorf("expected stored PublishedAt 2020-01-01, got %v", stored.PublishedAt)
 	}
 }
 
@@ -157,6 +142,39 @@ func TestCreateBook_ValidationError_MissingTitle(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateBook_InternalError_Returns500(t *testing.T) {
+	db := setupErrorDB(t)
+	router := setupRouter(db)
+
+	body := CreateBookRequest{
+		Title:       "Error book",
+		AuthorID:    uuid.New(),
+		Description: "Should fail",
+	}
+
+	b, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest(http.MethodPost, "/books", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.Code != "BOOK_CREATE_FAILED" {
+		t.Errorf("expected error code BOOK_CREATE_FAILED, got %q", resp.Code)
+	}
+	if resp.Message != "failed to create book" {
+		t.Errorf("expected message %q, got %q", "failed to create book", resp.Message)
 	}
 }
 
@@ -186,30 +204,12 @@ func TestListBooks_WithData(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
-	now := time.Now()
-	book1 := model.Book{
-		ID:          uuid.New(),
-		Title:       "Book 1",
-		Author:      "Author 1",
-		Description: "Desc 1",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-	book2 := model.Book{
-		ID:          uuid.New(),
-		Title:       "Book 2",
-		Author:      "Author 2",
-		Description: "Desc 2",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
+	author1 := seedAuthor(t, db, "Author 1")
 
-	if err := db.Create(&book1).Error; err != nil {
-		t.Fatalf("failed to seed book1: %v", err)
-	}
-	if err := db.Create(&book2).Error; err != nil {
-		t.Fatalf("failed to seed book2: %v", err)
-	}
+	author2 := seedAuthor(t, db, "Author 2")
+
+	book1 := seedBook(t, db, author1, "Book 1", "Desc 1", nil)
+	book2 := seedBook(t, db, author2, "Book 2", "Desc 2", nil)
 
 	req, _ := http.NewRequest(http.MethodGet, "/books", nil)
 	w := httptest.NewRecorder()
@@ -230,16 +230,52 @@ func TestListBooks_WithData(t *testing.T) {
 
 	found1 := false
 	found2 := false
+
 	for _, b := range resp {
-		if b.ID == book1.ID {
+		switch b.ID {
+		case book1.ID:
 			found1 = true
-		}
-		if b.ID == book2.ID {
+			if b.Author.ID != author1.ID {
+				t.Errorf("expected book1 author ID %q, got %q", author1.ID, b.Author.ID)
+			}
+			if b.Author.Name != author1.Name {
+				t.Errorf("expected book1 author name %q, got %q", author1.Name, b.Author.Name)
+			}
+		case book2.ID:
 			found2 = true
+			if b.Author.ID != author2.ID {
+				t.Errorf("expected book2 author ID %q, got %q", author2.ID, b.Author.ID)
+			}
+			if b.Author.Name != author2.Name {
+				t.Errorf("expected book2 author name %q, got %q", author2.Name, b.Author.Name)
+			}
 		}
 	}
+
 	if !found1 || !found2 {
 		t.Errorf("expected both seeded books to be present, got %+v", resp)
+	}
+}
+
+func TestListBooks_InternalError_Returns500(t *testing.T) {
+	db := setupErrorDB(t)
+	router := setupRouter(db)
+
+	req, _ := http.NewRequest(http.MethodGet, "/books", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code != "BOOK_LIST_FAILED" {
+		t.Errorf("expected error code BOOK_LIST_FAILED, got %q", resp.Code)
+	}
+	if resp.Message != "failed to fetch books" {
+		t.Errorf("expected message %q, got %q", "failed to fetch books", resp.Message)
 	}
 }
 
@@ -247,19 +283,9 @@ func TestGetBookByID_Success(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
-	now := time.Now()
-	book := model.Book{
-		ID:          uuid.New(),
-		Title:       "DDD",
-		Author:      "Evans",
-		Description: "Blue book",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
+	author := seedAuthor(t, db, "Evans")
 
-	if err := db.Create(&book).Error; err != nil {
-		t.Fatalf("failed to seed db: %v", err)
-	}
+	book := seedBook(t, db, author, "DDD", "Blue Book", nil)
 
 	req, _ := http.NewRequest(http.MethodGet, "/books/"+book.ID.String(), nil)
 	w := httptest.NewRecorder()
@@ -279,6 +305,13 @@ func TestGetBookByID_Success(t *testing.T) {
 	}
 	if resp.Title != book.Title {
 		t.Errorf("expected title %q, got %q", book.Title, resp.Title)
+	}
+
+	if resp.Author.ID != author.ID {
+		t.Errorf("expected author id %s, got %s", author.ID, resp.Author.ID)
+	}
+	if resp.Author.Name != author.Name {
+		t.Errorf("expected author name %q, got %q", author.Name, resp.Author.Name)
 	}
 }
 
@@ -320,26 +353,45 @@ func TestGetBookByID_NotFound(t *testing.T) {
 	}
 }
 
+func TestGetBookByID_InternalError_Returns500(t *testing.T) {
+	db := setupErrorDB(t)
+	router := setupRouter(db)
+
+	id := "550e8400-e29b-41d4-a716-446655440000"
+	req, _ := http.NewRequest(http.MethodGet, "/books/"+id, nil)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code != "BOOK_FETCH_FAILED" {
+		t.Errorf("expected error code BOOK_FETCH_FAILED, got %q", resp.Code)
+	}
+	if resp.Message != "failed to fetch book" {
+		t.Errorf("expected message %q, got %q", "failed to fetch book", resp.Message)
+	}
+}
+
 func TestUpdateBook_Success(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
-	now := time.Now()
-	book := model.Book{
-		ID:          uuid.New(),
-		Title:       "Old Title",
-		Author:      "Old Author",
-		Description: "Old Desc",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-	if err := db.Create(&book).Error; err != nil {
-		t.Fatalf("failed to seed db: %v", err)
-	}
+	oldAuthor := seedAuthor(t, db, "Old Author")
+
+	newAuthor := seedAuthor(t, db, "New Author")
+
+	book := seedBook(t, db, oldAuthor, "Old Title", "Old Desc", nil)
 
 	payload := map[string]any{
-		"title":       "New Title",
-		"description": "New Desc",
+		"title":        "New Title",
+		"author_id":    newAuthor.ID.String(),
+		"description":  "New Desc",
+		"published_at": "2020-01-01",
 	}
 
 	b, _ := json.Marshal(payload)
@@ -364,13 +416,90 @@ func TestUpdateBook_Success(t *testing.T) {
 	if resp.Description != "New Desc" {
 		t.Errorf("expected updated description, got %q", resp.Description)
 	}
+	if resp.Author.ID != newAuthor.ID {
+		t.Errorf("expected author ID %s, got %s", newAuthor.ID, resp.Author.ID)
+	}
+	if resp.Author.Name != newAuthor.Name {
+		t.Errorf("expected author name %q, got %q", newAuthor.Name, resp.Author.Name)
+	}
+	if resp.PublishedAt == nil || resp.PublishedAt.Time.Format("2006-01-02") != "2020-01-01" {
+		t.Errorf("expected PublishedAt 2020-01-01, got %+v", resp.PublishedAt)
+	}
 
 	var stored model.Book
 	if err := db.First(&stored, "id = ?", book.ID).Error; err != nil {
 		t.Fatalf("expected book in db, got: %v", err)
 	}
 	if stored.Title != "New Title" || stored.Description != "New Desc" {
-		t.Errorf("db not updated correctly: %+v", stored)
+		t.Errorf("db not updated correctly (title/description): %+v", stored)
+	}
+	if stored.AuthorID != newAuthor.ID {
+		t.Errorf("expected stored AuthorID %s, got %s", newAuthor.ID, stored.AuthorID)
+	}
+	if stored.PublishedAt == nil || stored.PublishedAt.Format("2006-01-02") != "2020-01-01" {
+		t.Errorf("expected stored PublishedAt 2020-01-01, got %v", stored.PublishedAt)
+	}
+}
+
+func TestUpdateBook_InvalidUUID(t *testing.T) {
+	db := setupTestDB(t)
+	router := setupRouter(db)
+
+	payload := map[string]any{
+		"title": "Doesn't matter",
+	}
+	b, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/books/not-a-uuid", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code != "INVALID_BOOK_ID" {
+		t.Errorf("expected error code INVALID_BOOK_ID, got %q", resp.Code)
+	}
+}
+
+func TestUpdateBook_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	router := setupRouter(db)
+
+	nonExistentID := uuid.New().String()
+
+	payload := map[string]any{
+		"title": "New Title",
+	}
+	b, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest(
+		http.MethodPatch,
+		"/books/"+nonExistentID,
+		bytes.NewReader(b),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.Code != "BOOK_NOT_FOUND" {
+		t.Errorf("expected error code BOOK_NOT_FOUND, got %q", resp.Code)
+	}
+	if resp.Message != "book not found" {
+		t.Errorf("expected message %q, got %q", "book not found", resp.Message)
 	}
 }
 
@@ -378,18 +507,9 @@ func TestUpdateBook_NoFieldsToUpdate(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
-	now := time.Now()
-	book := model.Book{
-		ID:          uuid.New(),
-		Title:       "Title",
-		Author:      "Author",
-		Description: "Desc",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-	if err := db.Create(&book).Error; err != nil {
-		t.Fatalf("failed to seed db: %v", err)
-	}
+	author := seedAuthor(t, db, "Author")
+
+	book := seedBook(t, db, author, "Title", "Desc", nil)
 
 	b, _ := json.Marshal(map[string]any{})
 
@@ -410,22 +530,227 @@ func TestUpdateBook_NoFieldsToUpdate(t *testing.T) {
 	}
 }
 
-func TestDeleteBook_Success(t *testing.T) {
+func TestUpdateBook_ValidationError_InvalidTitle(t *testing.T) {
+	db := setupTestDB(t)
+	router := setupRouter(db)
+
+	author := seedAuthor(t, db, "Author")
+
+	book := seedBook(t, db, author, "Title", "Desc", nil)
+
+	payload := map[string]any{
+		"title": "",
+	}
+	b, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest(
+		http.MethodPatch,
+		"/books/"+book.ID.String(),
+		bytes.NewReader(b),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code == "" {
+		t.Errorf("expected validation error code to be set, got empty string")
+	}
+}
+
+func TestUpdateBook_ClearPublishedAt_WhenZeroDate(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupRouter(db)
 
 	now := time.Now()
-	book := model.Book{
-		ID:          uuid.New(),
-		Title:       "To delete",
-		Author:      "Author",
-		Description: "Desc",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	pub := now.Add(-24 * time.Hour)
+
+	author := seedAuthor(t, db, "Author")
+
+	book := seedBook(t, db, author, "Title", "Desc", &pub)
+
+	payload := map[string]any{
+		"published_at": "",
 	}
-	if err := db.Create(&book).Error; err != nil {
-		t.Fatalf("failed to seed db: %v", err)
+
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequest(
+		http.MethodPatch,
+		"/books/"+book.ID.String(),
+		bytes.NewReader(b),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d, body=%s", w.Code, w.Body.String())
 	}
+
+	var resp BookResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if resp.PublishedAt != nil {
+		t.Errorf("expected PublishedAt to be nil in response, got %v", resp.PublishedAt)
+	}
+
+	var stored model.Book
+	if err := db.First(&stored, "id = ?", book.ID).Error; err != nil {
+		t.Fatalf("failed to fetch updated book: %v", err)
+	}
+
+	if stored.PublishedAt != nil {
+		t.Errorf("expected stored PublishedAt to be nil, got %v", stored.PublishedAt)
+	}
+}
+
+func TestUpdateBook_InternalErrorOnFetch_Returns500(t *testing.T) {
+	db := setupErrorDB(t)
+	router := setupRouter(db)
+
+	id := "550e8400-e29b-41d4-a716-446655440000"
+	payload := map[string]any{
+		"title": "Updated title",
+	}
+	b, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/books/"+id, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code != "BOOK_FETCH_FAILED" {
+		t.Errorf("expected error code BOOK_FETCH_FAILED, got %q", resp.Code)
+	}
+	if resp.Message != "failed to fetch book" {
+		t.Errorf("expected message %q, got %q", "failed to fetch book", resp.Message)
+	}
+}
+
+func TestUpdateBook_InternalErrorOnSave_Returns500(t *testing.T) {
+	db := setupTestDB(t)
+
+	author := seedAuthor(t, db, "Author")
+
+	book := seedBook(t, db, author, "Original", "Desc", nil)
+
+	if err := db.Callback().Update().
+		Before("gorm:before_update").
+		Register("force_update_error", func(tx *gorm.DB) {
+			tx.AddError(errors.New("forced update error"))
+		}); err != nil {
+		t.Fatalf("failed to register update callback: %v", err)
+	}
+
+	router := setupRouter(db)
+
+	payload := map[string]any{
+		"title": "New Title",
+	}
+	b, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest(
+		http.MethodPatch,
+		"/books/"+book.ID.String(),
+		bytes.NewReader(b),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.Code != "BOOK_UPDATE_FAILED" {
+		t.Errorf("expected error code BOOK_UPDATE_FAILED, got %q", resp.Code)
+	}
+	if resp.Message != "failed to update book" {
+		t.Errorf("expected message %q, got %q", "failed to update book", resp.Message)
+	}
+}
+
+func TestUpdateBook_InternalErrorOnFetchUpdated_Returns500(t *testing.T) {
+	db := setupTestDB(t)
+
+	author := seedAuthor(t, db, "Author")
+
+	book := seedBook(t, db, author, "Original", "Desc", nil)
+
+	var queryCount int
+	if err := db.Callback().Query().
+		Before("gorm:query").
+		Register("force_query_error_on_second", func(tx *gorm.DB) {
+			if tx.Statement.Table != "books" {
+				return
+			}
+			queryCount++
+			if queryCount == 2 {
+				tx.AddError(errors.New("forced query error"))
+			}
+		}); err != nil {
+		t.Fatalf("failed to register query callback: %v", err)
+	}
+
+	router := setupRouter(db)
+
+	payload := map[string]any{
+		"title": "New Title",
+	}
+	b, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest(
+		http.MethodPatch,
+		"/books/"+book.ID.String(),
+		bytes.NewReader(b),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.Code != "BOOK_FETCH_FAILED" {
+		t.Errorf("expected error code BOOK_FETCH_FAILED, got %q", resp.Code)
+	}
+	if resp.Message != "failed to fetch updated book" {
+		t.Errorf("expected message %q, got %q", "failed to fetch updated book", resp.Message)
+	}
+}
+
+func TestDeleteBook_Success(t *testing.T) {
+	db := setupTestDB(t)
+	router := setupRouter(db)
+
+	author := seedAuthor(t, db, "Author")
+
+	book := seedBook(t, db, author, "To Delete", "Desc", nil)
 
 	req, _ := http.NewRequest(http.MethodDelete, "/books/"+book.ID.String(), nil)
 	w := httptest.NewRecorder()
@@ -479,5 +804,29 @@ func TestDeleteBook_NotFound(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp.Code != "BOOK_NOT_FOUND" {
 		t.Errorf("expected error code BOOK_NOT_FOUND, got %q", resp.Code)
+	}
+}
+
+func TestDeleteBook_InternalError_Returns500(t *testing.T) {
+	db := setupErrorDB(t)
+	router := setupRouter(db)
+
+	id := "550e8400-e29b-41d4-a716-446655440000"
+	req, _ := http.NewRequest(http.MethodDelete, "/books/"+id, nil)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp validation.ErrorResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Code != "BOOK_DELETE_FAILED" {
+		t.Errorf("expected error code BOOK_DELETE_FAILED, got %q", resp.Code)
+	}
+	if resp.Message != "failed to delete book" {
+		t.Errorf("expected message %q, got %q", "failed to delete book", resp.Message)
 	}
 }

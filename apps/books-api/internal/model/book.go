@@ -10,7 +10,8 @@ import (
 type Book struct {
 	ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
 	Title       string    `gorm:"not null"`
-	Author      string    `gorm:"not null"`
+	AuthorID    uuid.UUID `gorm:"type:uuid;not null"`
+	Author      Author    `gorm:"foreignKey:AuthorID"`
 	Description string
 	PublishedAt *time.Time
 	CreatedAt   time.Time

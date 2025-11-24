@@ -1,1 +1,11 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "Running go vet for books-api..."
+(
+  cd apps/books-api || exit 1
+  go vet ./...
+)
+
+echo "Running lint-staged..."
 bun x lint-staged
