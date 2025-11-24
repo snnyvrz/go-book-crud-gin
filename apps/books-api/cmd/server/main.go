@@ -59,7 +59,8 @@ func main() {
 		bookRepo := repository.NewGormBookRepository(database)
 		bookHandler := handler.NewBookHandler(bookRepo)
 		bookHandler.RegisterRoutes(api)
-		authorHandler := handler.NewAuthorHandler(database)
+		authorRepo := repository.NewAuthorRepository(database)
+		authorHandler := handler.NewAuthorHandler(authorRepo)
 		authorHandler.RegisterRoutes(api)
 	}
 

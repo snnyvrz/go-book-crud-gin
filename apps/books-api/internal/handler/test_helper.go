@@ -67,7 +67,8 @@ func setupRouter(db *gorm.DB) *gin.Engine {
 	bookRepo := repository.NewGormBookRepository(db)
 	bh := NewBookHandler(bookRepo)
 	bh.RegisterRoutes(r.Group(""))
-	ah := NewAuthorHandler(db)
+	authorRepo := repository.NewAuthorRepository(db)
+	ah := NewAuthorHandler(authorRepo)
 	ah.RegisterRoutes(r.Group(""))
 
 	return r

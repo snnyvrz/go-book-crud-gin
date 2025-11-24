@@ -7,16 +7,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
+	"github.com/snnyvrz/shelfshare/apps/books-api/internal/repository"
 	"github.com/snnyvrz/shelfshare/apps/books-api/internal/validation"
 	"gorm.io/gorm"
 )
 
 type AuthorHandler struct {
-	db *gorm.DB
+	repo repository.AuthorRepository
 }
 
-func NewAuthorHandler(db *gorm.DB) *AuthorHandler {
-	return &AuthorHandler{db: db}
+func NewAuthorHandler(repo repository.AuthorRepository) *AuthorHandler {
+	return &AuthorHandler{repo: repo}
 }
 
 type CreateAuthorRequest struct {
@@ -87,7 +88,7 @@ func (h *AuthorHandler) CreateAuthor(c *gin.Context) {
 		Bio:  req.Bio,
 	}
 
-	if err := h.db.Create(&author).Error; err != nil {
+	if err := h.repo.Create(c.Request.Context(), &author); err != nil {
 		writeError(c, http.StatusInternalServerError,
 			"AUTHOR_CREATE_FAILED",
 			"failed to create author",
@@ -108,9 +109,10 @@ func (h *AuthorHandler) CreateAuthor(c *gin.Context) {
 // @Failure      500  {object}  validation.ErrorResponse   "Internal server error"
 // @Router       /authors [get]
 func (h *AuthorHandler) ListAuthors(c *gin.Context) {
-	var authors []model.Author
+	ctx := c.Request.Context()
 
-	if err := h.db.Preload("Books").Order("created_at DESC").Find(&authors).Error; err != nil {
+	authors, err := h.repo.List(ctx)
+	if err != nil {
 		writeError(c, http.StatusInternalServerError,
 			"AUTHOR_LIST_FAILED",
 			"failed to list authors",
@@ -149,8 +151,10 @@ func (h *AuthorHandler) GetAuthorByID(c *gin.Context) {
 		return
 	}
 
-	var author model.Author
-	if err := h.db.Preload("Books").First(&author, "id = ?", id).Error; err != nil {
+	ctx := c.Request.Context()
+
+	author, err := h.repo.FindByID(ctx, id)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			writeError(c, http.StatusNotFound,
 				"AUTHOR_NOT_FOUND",
@@ -166,7 +170,7 @@ func (h *AuthorHandler) GetAuthorByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, toAuthorResponse(author))
+	c.JSON(http.StatusOK, toAuthorResponse(*author))
 }
 
 // UpdateAuthor godoc
@@ -198,8 +202,10 @@ func (h *AuthorHandler) UpdateAuthor(c *gin.Context) {
 		return
 	}
 
-	var author model.Author
-	if err := h.db.Preload("Books").First(&author, "id = ?", id).Error; err != nil {
+	ctx := c.Request.Context()
+
+	author, err := h.repo.FindByID(ctx, id)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			writeError(c, http.StatusNotFound,
 				"AUTHOR_NOT_FOUND",
@@ -222,7 +228,7 @@ func (h *AuthorHandler) UpdateAuthor(c *gin.Context) {
 		author.Bio = *req.Bio
 	}
 
-	if err := h.db.Save(&author).Error; err != nil {
+	if err := h.repo.Update(ctx, author); err != nil {
 		writeError(c, http.StatusInternalServerError,
 			"AUTHOR_UPDATE_FAILED",
 			"failed to update author",
@@ -230,7 +236,8 @@ func (h *AuthorHandler) UpdateAuthor(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, toAuthorResponse(author))
+	// author still has Books preloaded from FindByID
+	c.JSON(http.StatusOK, toAuthorResponse(*author))
 }
 
 // DeleteAuthor godoc
@@ -256,19 +263,20 @@ func (h *AuthorHandler) DeleteAuthor(c *gin.Context) {
 		return
 	}
 
-	result := h.db.Delete(&model.Author{}, "id = ?", id)
-	if result.Error != nil {
+	ctx := c.Request.Context()
+
+	if err := h.repo.Delete(ctx, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			writeError(c, http.StatusNotFound,
+				"AUTHOR_NOT_FOUND",
+				"author not found",
+			)
+			return
+		}
+
 		writeError(c, http.StatusInternalServerError,
 			"AUTHOR_DELETE_FAILED",
 			"failed to delete author",
-		)
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		writeError(c, http.StatusNotFound,
-			"AUTHOR_NOT_FOUND",
-			"author not found",
 		)
 		return
 	}
