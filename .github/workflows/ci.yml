@@ -1,0 +1,82 @@
+name: CI
+
+on:
+    push:
+        branches:
+            - main
+            - develop
+            - "feature/**"
+    pull_request:
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    GO_VERSION: "1.25.4"
+    BUN_VERSION: "1.3.3"
+
+jobs:
+    books_api_unit:
+        name: books-api unit tests & coverage (Nx + Go)
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+
+            - name: Cache Go modules
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cache/go-build
+                      ~/go/pkg/mod
+                  key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('apps/books-api/go.sum') }}
+                  restore-keys: |
+                      ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+
+            - name: Install JS/TS dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Run books-api coverage via Nx
+              run: bunx nx coverage books-api --skip-nx-cache
+
+            - name: Upload coverage artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: books-api-coverage
+                  path: |
+                      apps/books-api/coverage/coverage.out
+                      apps/books-api/coverage/coverage.html
+
+            - name: Generate Swagger docs via Nx
+              run: bunx nx swagger books-api --skip-nx-cache
+
+    books_api_integration:
+        name: books-api integration tests (Docker + Postgres)
+        runs-on: ubuntu-latest
+        needs: books_api_unit
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+
+            - name: Run integration tests via Makefile
+              run: make books-integration-test
