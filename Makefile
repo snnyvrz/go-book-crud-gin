@@ -1,7 +1,7 @@
 .ONESHELL:
 SHELL := /bin/bash
 
-.PHONY: books-dev books-infra-up infra-down logs
+.PHONY: books-dev books-test books-coverage books-integration-test books-infra-up infra-down logs
 
 books-dev:
 	@set -e
@@ -21,10 +21,10 @@ books-dev:
 	while true; do
 		status=$$(docker inspect --format='{{.State.Health.Status}}' shelfshare-postgres 2>/dev/null || echo "starting")
 		if [ "$$status" = "healthy" ]; then
-			echo "Postgres is healthy ✅"
+			echo "Postgres is healthy"
 			break
 		elif [ "$$status" = "unhealthy" ]; then
-			echo "Postgres is UNHEALTHY ❌ — check logs with 'make logs'"
+			echo "Postgres is UNHEALTHY — check logs with 'make logs'"
 			exit 1
 		else
 			echo "Current status: $$status… waiting 1s"
@@ -42,6 +42,35 @@ books-test:
 books-coverage:
 	bunx nx coverage books-api
 	nohup xdg-open apps/books-api/coverage/coverage.html >/dev/null 2>&1 & echo "" || true
+
+books-integration-test:
+	@set -e
+
+	echo "Starting infra..."
+	docker compose --env-file .env.test -f infra/docker-compose.infra.yml up -d postgres
+
+	echo "Waiting for infra to become healthy..."
+	while true; do
+		status=$$(docker inspect --format='{{.State.Health.Status}}' shelfshare-postgres 2>/dev/null || echo "starting")
+		if [ "$$status" = "healthy" ]; then
+			echo "Postgres is healthy"
+			break
+		elif [ "$$status" = "unhealthy" ]; then
+			echo "Postgres is UNHEALTHY — check logs with 'make logs'"
+			exit 1
+		else
+			echo "Current status: $$status… waiting 1s"
+			sleep 1
+		fi
+	done
+
+	echo "Running books-api integration tests..."
+	set -a; . .env.test; set +a;
+	docker exec $$DB_CONTAINER_NAME psql -U $$DB_USER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$$DB_NAME'" | grep -q 1 || docker exec $$DB_CONTAINER_NAME psql -U $$DB_USER -d postgres -c "CREATE DATABASE $$DB_NAME"
+	cd apps/books-api && go test -tags=integration ./...
+	echo "Books-api integration tests completed."
+	echo "Stopping infra..."
+	cd ../.. && docker compose --env-file .env.test -f infra/docker-compose.infra.yml down
 
 books-infra-up:
 	docker compose --env-file .env -f infra/docker-compose.infra.yml up -d postgres

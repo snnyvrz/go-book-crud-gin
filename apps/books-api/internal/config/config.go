@@ -29,7 +29,7 @@ func Load() *Config {
 		DBUser:    getenv("DB_USER", "postgres"),
 		DBPass:    getenv("DB_PASS", ""),
 		DBName:    getenv("DB_NAME", "postgres"),
-		DBSSLMode: os.Getenv("DB_SSLMODE"),
+		DBSSLMode: getenv("DB_SSLMODE", ""),
 	}
 
 	if cfg.DBSSLMode == "" {

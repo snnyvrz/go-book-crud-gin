@@ -57,10 +57,12 @@ func main() {
 	api := e.Group("/api")
 	{
 		bookRepo := repository.NewGormBookRepository(database)
-		bookHandler := handler.NewBookHandler(bookRepo)
-		bookHandler.RegisterRoutes(api)
 		authorRepo := repository.NewAuthorRepository(database)
+
+		bookHandler := handler.NewBookHandler(bookRepo)
 		authorHandler := handler.NewAuthorHandler(authorRepo)
+
+		bookHandler.RegisterRoutes(api)
 		authorHandler.RegisterRoutes(api)
 	}
 
