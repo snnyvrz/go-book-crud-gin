@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:17
-    container_name: ${DB_CONTAINER_NAME}
+    container_name: shelfshare-postgres
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
