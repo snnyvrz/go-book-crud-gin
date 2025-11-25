@@ -78,5 +78,21 @@ jobs:
               with:
                   go-version: ${{ env.GO_VERSION }}
 
+            - name: Cache Go modules
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cache/go-build
+                      ~/go/pkg/mod
+                  key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('apps/books-api/go.sum') }}
+                  restore-keys: |
+                      ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+
+            - name: Install JS/TS dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Generate Swagger docs via Nx
+              run: bunx nx swagger books-api --skip-nx-cache
+
             - name: Run integration tests via Makefile
               run: make books-integration-test
