@@ -50,6 +50,9 @@ jobs:
             - name: Install JS/TS dependencies
               run: bun install --frozen-lockfile
 
+            - name: Generate Swagger docs via Nx
+              run: bunx nx swagger books-api --skip-nx-cache
+
             - name: Run books-api coverage via Nx
               run: bunx nx coverage books-api --skip-nx-cache
 
@@ -60,9 +63,6 @@ jobs:
                   path: |
                       apps/books-api/coverage/coverage.out
                       apps/books-api/coverage/coverage.html
-
-            - name: Generate Swagger docs via Nx
-              run: bunx nx swagger books-api --skip-nx-cache
 
     books_api_integration:
         name: books-api integration tests (Docker + Postgres)
