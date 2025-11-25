@@ -22,38 +22,6 @@ func NewBookHandler(repo repository.BookRepository) *BookHandler {
 	return &BookHandler{repo: repo}
 }
 
-type CreateBookRequest struct {
-	Title       string      `json:"title" binding:"required"`
-	AuthorID    uuid.UUID   `json:"author_id" binding:"required,uuid4"`
-	Description string      `json:"description"`
-	PublishedAt *model.Date `json:"published_at" swaggertype:"string" example:"2025-11-24"`
-}
-
-type UpdateBookRequest struct {
-	Title       *string     `json:"title" binding:"omitempty,min=1"`
-	AuthorID    *uuid.UUID  `json:"author_id" binding:"omitempty,uuid4"`
-	Description *string     `json:"description" binding:"omitempty,max=2000"`
-	PublishedAt *model.Date `json:"published_at" swaggertype:"string" example:"2025-11-24"`
-}
-type BookResponse struct {
-	ID          uuid.UUID      `json:"id"`
-	Title       string         `json:"title"`
-	Author      AuthorResponse `json:"author"`
-	Description string         `json:"description"`
-	PublishedAt *model.Date    `json:"published_at,omitempty" swaggertype:"string" example:"2025-11-24"`
-	CreatedAt   model.Date     `json:"created_at" swaggertype:"string" example:"2025-11-24"`
-	UpdatedAt   model.Date     `json:"updated_at" swaggertype:"string" example:"2025-11-24"`
-}
-
-type BookSummaryResponse struct {
-	ID          uuid.UUID   `json:"id"`
-	Title       string      `json:"title"`
-	Description string      `json:"description"`
-	PublishedAt *model.Date `json:"published_at,omitempty" swaggertype:"string" example:"2025-11-24"`
-	CreatedAt   model.Date  `json:"created_at" swaggertype:"string" example:"2025-11-24"`
-	UpdatedAt   model.Date  `json:"updated_at" swaggertype:"string" example:"2025-11-24"`
-}
-
 func (h *BookHandler) RegisterRoutes(r *gin.RouterGroup) {
 	books := r.Group("/books")
 	{
@@ -62,49 +30,6 @@ func (h *BookHandler) RegisterRoutes(r *gin.RouterGroup) {
 		books.PATCH("/:id", h.UpdateBook)
 		books.DELETE("/:id", h.DeleteBook)
 		books.POST("", h.CreateBook)
-	}
-}
-
-func toBookResponse(b model.Book) BookResponse {
-	var pub *model.Date
-	if b.PublishedAt != nil && !b.PublishedAt.IsZero() {
-		pub = &model.Date{Time: *b.PublishedAt}
-	}
-
-	return BookResponse{
-		ID:    b.ID,
-		Title: b.Title,
-		Author: AuthorResponse{
-			ID:   b.Author.ID,
-			Name: b.Author.Name,
-			Bio:  b.Author.Bio,
-			CreatedAt: model.Date{
-				Time: b.Author.CreatedAt,
-			},
-			UpdatedAt: model.Date{
-				Time: b.Author.UpdatedAt,
-			},
-		},
-		Description: b.Description,
-		PublishedAt: pub,
-		CreatedAt:   model.Date{Time: b.CreatedAt},
-		UpdatedAt:   model.Date{Time: b.UpdatedAt},
-	}
-}
-
-func toBookSummaryResponse(b model.Book) BookSummaryResponse {
-	var pub *model.Date
-	if b.PublishedAt != nil && !b.PublishedAt.IsZero() {
-		pub = &model.Date{Time: *b.PublishedAt}
-	}
-
-	return BookSummaryResponse{
-		ID:          b.ID,
-		Title:       b.Title,
-		Description: b.Description,
-		PublishedAt: pub,
-		CreatedAt:   model.Date{Time: b.CreatedAt},
-		UpdatedAt:   model.Date{Time: b.UpdatedAt},
 	}
 }
 
@@ -176,13 +101,72 @@ func (h *BookHandler) CreateBook(c *gin.Context) {
 // @Description  Get all books
 // @Tags         books
 // @Produce      json
-// @Success      200  {array}   BookResponse
+// @Param        page            query     int     false  "Page number"      default(1) minimum(1)
+// @Param        page_size       query     int     false  "Items per page"   default(20) minimum(1) maximum(100)
+// @Param        sort            query     string  false  "Sort field and direction" Enums(created_at_desc,created_at_asc,title_asc,title_desc,published_at_desc,published_at_asc)
+// @Param        q               query     string  false  "Full-text search on title and description"
+// @Param        author_id       query     string  false  "Filter by author ID (UUID)"
+// @Param        published_after query     string  false  "Filter: published_at >= YYYY-MM-DD" example(2015-01-01)
+// @Param        published_before query    string  false  "Filter: published_at <= YYYY-MM-DD" example(2020-12-31)
+// @Success      200  {object}   ListBooksResponse
+// @Failure      400  {object}  validation.ErrorResponse   "Invalid query parameters"
 // @Failure      500  {object}  validation.ErrorResponse   "Internal server error"
 // @Router       /books [get]
 func (h *BookHandler) ListBooks(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	books, err := h.repo.List(ctx)
+	page := parseIntQuery(c, "page", 1)
+	pageSize := parseIntQuery(c, "page_size", 20)
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	sort := c.DefaultQuery("sort", "created_at_desc")
+
+	query := c.Query("q")
+
+	var authorIDPtr *uuid.UUID
+	if authorStr := c.Query("author_id"); authorStr != "" {
+		id, err := uuid.Parse(authorStr)
+		if err != nil {
+			writeError(c, http.StatusBadRequest,
+				"INVALID_AUTHOR_ID",
+				"author_id must be a valid UUID",
+			)
+			return
+		}
+		authorIDPtr = &id
+	}
+
+	pubAfter, err := parseDateQuery(c, "published_after")
+	if err != nil {
+		writeError(c, http.StatusBadRequest,
+			"INVALID_PUBLISHED_AFTER",
+			"published_after must be in format YYYY-MM-DD",
+		)
+		return
+	}
+
+	pubBefore, err := parseDateQuery(c, "published_before")
+	if err != nil {
+		writeError(c, http.StatusBadRequest,
+			"INVALID_PUBLISHED_BEFORE",
+			"published_before must be in format YYYY-MM-DD",
+		)
+		return
+	}
+
+	params := repository.BookListParams{
+		Page:      page,
+		PageSize:  pageSize,
+		Sort:      sort,
+		Query:     query,
+		AuthorID:  authorIDPtr,
+		PubAfter:  pubAfter,
+		PubBefore: pubBefore,
+	}
+
+	result, err := h.repo.List(ctx, params)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError,
 			"BOOK_LIST_FAILED",
@@ -191,12 +175,17 @@ func (h *BookHandler) ListBooks(c *gin.Context) {
 		return
 	}
 
-	responses := make([]BookResponse, 0, len(books))
-	for _, b := range books {
+	responses := make([]BookResponse, 0, len(result.Books))
+	for _, b := range result.Books {
 		responses = append(responses, toBookResponse(b))
 	}
 
-	c.JSON(http.StatusOK, responses)
+	totalPages := 0
+	if params.PageSize > 0 {
+		totalPages = int((result.Total + int64(params.PageSize) - 1) / int64(params.PageSize))
+	}
+
+	c.JSON(http.StatusOK, toListBooksResponse(responses, params.Page, params.PageSize, result.Total, totalPages))
 }
 
 // GetBookByID godoc

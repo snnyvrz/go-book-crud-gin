@@ -21,7 +21,7 @@ import (
 
 type fakeBookRepo struct {
 	CreateFn   func(ctx context.Context, b *model.Book) error
-	ListFn     func(ctx context.Context) ([]model.Book, error)
+	ListFn     func(ctx context.Context, params repository.BookListParams) (repository.BookListResult, error)
 	FindByIDFn func(ctx context.Context, id uuid.UUID) (*model.Book, error)
 	UpdateFn   func(ctx context.Context, b *model.Book) error
 	DeleteFn   func(ctx context.Context, id uuid.UUID) error
@@ -34,11 +34,11 @@ func (f *fakeBookRepo) Create(ctx context.Context, b *model.Book) error {
 	return nil
 }
 
-func (f *fakeBookRepo) List(ctx context.Context) ([]model.Book, error) {
+func (f *fakeBookRepo) List(ctx context.Context, params repository.BookListParams) (repository.BookListResult, error) {
 	if f.ListFn != nil {
-		return f.ListFn(ctx)
+		return f.ListFn(ctx, params)
 	}
-	return nil, nil
+	return repository.BookListResult{}, nil
 }
 
 func (f *fakeBookRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.Book, error) {
@@ -74,7 +74,7 @@ func setupBookRouterWithRepo(bookRepo repository.BookRepository) *gin.Engine {
 
 func TestCreateBook_Success(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Evans")
 
@@ -134,7 +134,7 @@ func TestCreateBook_Success(t *testing.T) {
 
 func TestCreateBook_SuccessWithPublishedAt(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Evans")
 
@@ -183,7 +183,7 @@ func TestCreateBook_SuccessWithPublishedAt(t *testing.T) {
 
 func TestCreateBook_ValidationError_MissingTitle(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	payload := map[string]any{
 		"author": "Some Author",
@@ -241,10 +241,8 @@ func TestCreateBook_InternalError_Returns500(t *testing.T) {
 }
 
 func TestCreateBook_FetchCreatedBookError_Returns500(t *testing.T) {
-	// Fake repo: Create succeeds, FindByID fails
 	bookRepo := &fakeBookRepo{
 		CreateFn: func(ctx context.Context, b *model.Book) error {
-			// simulate successful create
 			if b.ID == uuid.Nil {
 				b.ID = uuid.New()
 			}
@@ -291,7 +289,7 @@ func TestCreateBook_FetchCreatedBookError_Returns500(t *testing.T) {
 
 func TestListBooks_Empty(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodGet, "/books", nil)
 	w := httptest.NewRecorder()
@@ -301,19 +299,19 @@ func TestListBooks_Empty(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", w.Code, w.Body.String())
 	}
 
-	var resp []BookResponse
+	var resp ListBooksResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
-	if len(resp) != 0 {
-		t.Errorf("expected empty list, got %d items", len(resp))
+	if len(resp.Data) != 0 {
+		t.Errorf("expected empty list, got %d items", len(resp.Data))
 	}
 }
 
 func TestListBooks_WithData(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author1 := testutil.SeedAuthor(t, db, "Author 1")
 	author2 := testutil.SeedAuthor(t, db, "Author 2")
@@ -329,19 +327,19 @@ func TestListBooks_WithData(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", w.Code, w.Body.String())
 	}
 
-	var resp []BookResponse
+	var resp ListBooksResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
-	if len(resp) != 2 {
-		t.Fatalf("expected 2 books, got %d", len(resp))
+	if len(resp.Data) != 2 {
+		t.Fatalf("expected 2 books, got %d", len(resp.Data))
 	}
 
 	found1 := false
 	found2 := false
 
-	for _, b := range resp {
+	for _, b := range resp.Data {
 		switch b.ID {
 		case book1.ID:
 			found1 = true
@@ -369,8 +367,8 @@ func TestListBooks_WithData(t *testing.T) {
 
 func TestListBooks_InternalError_Returns500(t *testing.T) {
 	bookRepo := &fakeBookRepo{
-		ListFn: func(ctx context.Context) ([]model.Book, error) {
-			return nil, errors.New("forced list error")
+		ListFn: func(ctx context.Context, params repository.BookListParams) (repository.BookListResult, error) {
+			return repository.BookListResult{}, errors.New("forced list error")
 		},
 	}
 
@@ -396,7 +394,7 @@ func TestListBooks_InternalError_Returns500(t *testing.T) {
 
 func TestGetBookByID_Success(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Evans")
 	book := testutil.SeedBook(t, db, author, "DDD", "Blue Book", nil)
@@ -431,7 +429,7 @@ func TestGetBookByID_Success(t *testing.T) {
 
 func TestGetBookByID_InvalidUUID(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodGet, "/books/not-a-uuid", nil)
 	w := httptest.NewRecorder()
@@ -450,7 +448,7 @@ func TestGetBookByID_InvalidUUID(t *testing.T) {
 
 func TestGetBookByID_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodGet, "/books/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
@@ -498,7 +496,7 @@ func TestGetBookByID_InternalError_Returns500(t *testing.T) {
 
 func TestUpdateBook_Success(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	oldAuthor := testutil.SeedAuthor(t, db, "Old Author")
 	newAuthor := testutil.SeedAuthor(t, db, "New Author")
@@ -561,7 +559,7 @@ func TestUpdateBook_Success(t *testing.T) {
 
 func TestUpdateBook_InvalidUUID(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	payload := map[string]any{
 		"title": "Doesn't matter",
@@ -587,7 +585,7 @@ func TestUpdateBook_InvalidUUID(t *testing.T) {
 
 func TestUpdateBook_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	nonExistentID := uuid.New().String()
 
@@ -623,7 +621,7 @@ func TestUpdateBook_NotFound(t *testing.T) {
 
 func TestUpdateBook_NoFieldsToUpdate(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Author")
 	book := testutil.SeedBook(t, db, author, "Title", "Desc", nil)
@@ -649,7 +647,7 @@ func TestUpdateBook_NoFieldsToUpdate(t *testing.T) {
 
 func TestUpdateBook_ValidationError_InvalidTitle(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Author")
 	book := testutil.SeedBook(t, db, author, "Title", "Desc", nil)
@@ -682,7 +680,7 @@ func TestUpdateBook_ValidationError_InvalidTitle(t *testing.T) {
 
 func TestUpdateBook_ClearPublishedAt_WhenZeroDate(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	now := time.Now()
 	pub := now.Add(-24 * time.Hour)
@@ -856,7 +854,7 @@ func TestUpdateBook_InternalErrorOnFetchUpdated_Returns500(t *testing.T) {
 
 func TestDeleteBook_Success(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Author")
 	book := testutil.SeedBook(t, db, author, "To Delete", "Desc", nil)
@@ -880,7 +878,7 @@ func TestDeleteBook_Success(t *testing.T) {
 
 func TestDeleteBook_InvalidUUID(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodDelete, "/books/not-a-uuid", nil)
 	w := httptest.NewRecorder()
@@ -899,7 +897,7 @@ func TestDeleteBook_InvalidUUID(t *testing.T) {
 
 func TestDeleteBook_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodDelete, "/books/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()

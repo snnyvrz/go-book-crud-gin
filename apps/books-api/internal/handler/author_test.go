@@ -74,7 +74,7 @@ func setupAuthorRouterWithRepo(authorRepo repository.AuthorRepository) *gin.Engi
 
 func TestCreateAuthor_Success(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	body := CreateAuthorRequest{
 		Name: "Martin Fowler",
@@ -126,7 +126,7 @@ func TestCreateAuthor_Success(t *testing.T) {
 
 func TestCreateAuthor_ValidationError_MissingName(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	payload := map[string]any{
 		"bio": "Some bio",
@@ -184,7 +184,7 @@ func TestCreateAuthor_InternalError_Returns500(t *testing.T) {
 
 func TestListAuthors_Empty(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodGet, "/authors", nil)
 	w := httptest.NewRecorder()
@@ -206,7 +206,7 @@ func TestListAuthors_Empty(t *testing.T) {
 
 func TestListAuthors_WithData(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author1 := testutil.SeedAuthor(t, db, "Author 1")
 	author2 := testutil.SeedAuthor(t, db, "Author 2")
@@ -280,7 +280,7 @@ func TestListAuthors_InternalError_Returns500(t *testing.T) {
 
 func TestAuthorResponse_IncludesPublishedAtInBookSummary(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Evans")
 
@@ -317,7 +317,7 @@ func TestAuthorResponse_IncludesPublishedAtInBookSummary(t *testing.T) {
 
 func TestGetAuthorByID_Success(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Evans")
 
@@ -344,7 +344,7 @@ func TestGetAuthorByID_Success(t *testing.T) {
 
 func TestGetAuthorByID_WithBooks(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Evans")
 
@@ -375,7 +375,7 @@ func TestGetAuthorByID_WithBooks(t *testing.T) {
 
 func TestGetAuthorByID_InvalidUUID(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodGet, "/authors/not-a-uuid", nil)
 	w := httptest.NewRecorder()
@@ -394,7 +394,7 @@ func TestGetAuthorByID_InvalidUUID(t *testing.T) {
 
 func TestGetAuthorByID_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodGet, "/authors/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
@@ -442,7 +442,7 @@ func TestGetAuthorByID_InternalError_Returns500(t *testing.T) {
 
 func TestUpdateAuthor_Success(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Old Name")
 
@@ -489,7 +489,7 @@ func TestUpdateAuthor_Success(t *testing.T) {
 
 func TestUpdateAuthor_InvalidUUID(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	payload := map[string]any{
 		"name": "Doesn't matter",
@@ -515,7 +515,7 @@ func TestUpdateAuthor_InvalidUUID(t *testing.T) {
 
 func TestUpdateAuthor_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	nonExistentID := uuid.New().String()
 
@@ -551,7 +551,7 @@ func TestUpdateAuthor_NotFound(t *testing.T) {
 
 func TestUpdateAuthor_ValidationError_InvalidName(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Author")
 
@@ -661,7 +661,7 @@ func TestUpdateAuthor_InternalErrorOnSave_Returns500(t *testing.T) {
 
 func TestDeleteAuthor_Success(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	author := testutil.SeedAuthor(t, db, "Author To Delete")
 
@@ -684,7 +684,7 @@ func TestDeleteAuthor_Success(t *testing.T) {
 
 func TestDeleteAuthor_InvalidUUID(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodDelete, "/authors/not-a-uuid", nil)
 	w := httptest.NewRecorder()
@@ -703,7 +703,7 @@ func TestDeleteAuthor_InvalidUUID(t *testing.T) {
 
 func TestDeleteAuthor_NotFound(t *testing.T) {
 	db := testutil.NewTestDB(t)
-	router := setupRouter(db)
+	router := setupTestRouter(db)
 
 	req, _ := http.NewRequest(http.MethodDelete, "/authors/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
