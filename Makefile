@@ -66,7 +66,7 @@ books-integration-test:
 
 	echo "Running books-api integration tests..."
 	set -a; . .env.test; set +a;
-	docker exec $$DB_CONTAINER_NAME psql -U $$DB_USER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$$DB_NAME'" | grep -q 1 || docker exec $$DB_CONTAINER_NAME psql -U $$DB_USER -d postgres -c "CREATE DATABASE $$DB_NAME"
+	docker exec shelfshare-postgres psql -U $$DB_USER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$$DB_NAME'" | grep -q 1 || docker exec shelfshare-postgres psql -U $$DB_USER -d postgres -c "CREATE DATABASE $$DB_NAME"
 	cd apps/books-api && go test -tags=integration ./...
 	echo "Books-api integration tests completed."
 	echo "Stopping infra..."
