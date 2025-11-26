@@ -42,12 +42,11 @@ services:
       DB_PORT: ${DB_PORT}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.books-api.rule=Host(`${DOMAIN_BASE}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.books-api.middlewares=books-api-strip"
-      - "traefik.http.middlewares.books-api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.routers.books-api.rule=Host(`api.shelfshare.space`)"
       - "traefik.http.routers.books-api.entrypoints=websecure"
       - "traefik.http.routers.books-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.books-api.loadbalancer.server.port=8080"
+
     restart: unless-stopped
 
 networks:
