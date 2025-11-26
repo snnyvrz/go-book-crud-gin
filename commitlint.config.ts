@@ -8,7 +8,7 @@ const Configuration: UserConfig = {
         "scope-enum": [
             RuleConfigSeverity.Error,
             "always",
-            ["books-api", "root"],
+            ["books-api", "auth-api", "root"],
         ],
     },
 };

@@ -7,6 +7,8 @@
     "@commitlint/config-conventional": "^20.0.0",
     "@eslint/js": "^9.39.1",
     "@types/bun": "latest",
+    "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
     "eslint": "^9.39.1",
     "globals": "^16.5.0",
     "husky": "^9.1.7",
@@ -21,5 +23,9 @@
   },
   "scripts": {
     "prepare": "husky"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2"
   }
 }
