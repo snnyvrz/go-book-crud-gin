@@ -114,7 +114,7 @@ jobs:
 
                       echo "Waiting for internal service on :8080..."
 
-                      for i in {1..30}; do
+                      for i in {1..60}; do
                         if curl -fs http://localhost:8080/ready > /dev/null; then
                           echo "Internal service is healthy."
                           break
@@ -123,14 +123,14 @@ jobs:
                         sleep 1
                       done
 
-                      if [ $i -eq 30 ]; then
-                        echo "Internal health check FAILED after 30 seconds"
+                      if [ $i -eq 60 ]; then
+                        echo "Internal health check FAILED after 60 seconds"
                         exit 1
                       fi
 
                       echo "Waiting for external endpoint https://api.shelfshare.space/ready..."
 
-                      for i in {1..30}; do
+                      for i in {1..60}; do
                         if curl -fs --insecure https://api.shelfshare.space/ready > /dev/null; then
                           echo "External service is healthy."
                           break
@@ -139,8 +139,8 @@ jobs:
                         sleep 1
                       done
 
-                      if [ $i -eq 30 ]; then
-                        echo "External health check FAILED after 30 seconds"
+                      if [ $i -eq 60 ]; then
+                        echo "External health check FAILED after 60 seconds"
                         exit 1
                       fi
 
