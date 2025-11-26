@@ -112,22 +112,6 @@ jobs:
                       echo "Pruning old images..."
                       docker image prune -af || true
 
-                      echo "Waiting for internal service on :8080..."
-
-                      for i in {1..60}; do
-                        if curl -fs http://localhost:8080/ready > /dev/null; then
-                          echo "Internal service is healthy."
-                          break
-                        fi
-                        echo "Attempt $i: not ready yet..."
-                        sleep 1
-                      done
-
-                      if [ $i -eq 60 ]; then
-                        echo "Internal health check FAILED after 60 seconds"
-                        exit 1
-                      fi
-
                       echo "Waiting for external endpoint https://api.shelfshare.space/ready..."
 
                       for i in {1..60}; do
