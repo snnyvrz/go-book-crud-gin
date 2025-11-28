@@ -46,7 +46,7 @@ services:
             timeout: 3s
             retries: 10
         volumes:
-            - shelfshare_pg_data_localprod:/var/lib/postgresql
+            - shelfshare_pg_data_prod:/var/lib/postgresql
 
     books-service:
         image: ${BOOKS_SERVICE_IMAGE:-ghcr.io/snnyvrz/shelfshare-books-service:latest}
@@ -73,3 +73,6 @@ services:
 networks:
     web:
         driver: bridge
+
+volumes:
+    shelfshare_pg_data_prod:
