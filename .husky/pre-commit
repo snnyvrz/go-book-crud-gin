@@ -1,5 +1,5 @@
 (
-  cd apps/books-api || exit 1
+  cd apps/books-service || exit 1
   go vet ./...
 )
 

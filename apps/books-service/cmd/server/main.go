@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/config"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/db"
-	docs "github.com/snnyvrz/shelfshare/apps/books-api/internal/docs"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/handler"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/repository"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/config"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/db"
+	docs "github.com/snnyvrz/shelfshare/apps/books-service/internal/docs"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/handler"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/model"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/repository"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )

@@ -3,7 +3,7 @@ SHELL := /bin/bash
 
 ENV_DEV  := .env
 ENV_TEST := .env.test
-ENV_PROD := .env.prod
+ENV_LOCALPROD := .env.localprod
 
 INFRA_COMPOSE    := -f docker-compose.infra.yml
 POSTGRES_SERVICE := postgres
@@ -13,7 +13,7 @@ DC = docker compose --env-file $(ENV_FILE) $(INFRA_COMPOSE)
 
 .PHONY: \
 	books-dev books-test books-coverage books-swagger books-integration-test \
-	books-infra-up infra-down logs books-local
+	books-infra-up infra-down logs books-localprod
 
 define wait_for_postgres
 	@echo "Waiting for Postgres to become healthy..."
@@ -47,18 +47,18 @@ books-dev:
 
 	$(call wait_for_postgres)
 
-	echo "Starting books-api via Nx (Ctrl+C to stop everything)..."
-	bunx nx serve books-api || true
+	echo "Starting books-service via Nx (Ctrl+C to stop everything)..."
+	bunx nx serve books-service || true
 
 books-test:
-	bunx nx test books-api
+	bunx nx test books-service
 
 books-coverage:
-	bunx nx coverage books-api
-	nohup xdg-open apps/books-api/coverage/coverage.html >/dev/null 2>&1 & echo "" || true
+	bunx nx coverage books-service
+	nohup xdg-open apps/books-service/coverage/coverage.html >/dev/null 2>&1 & echo "" || true
 
 books-swagger:
-	bunx nx swagger books-api
+	bunx nx swagger books-service
 
 books-integration-test: ENV_FILE=$(ENV_TEST)
 books-integration-test:
@@ -68,7 +68,7 @@ books-integration-test:
 
 	$(call wait_for_postgres)
 
-	echo "Running books-api integration tests..."
+	echo "Running books-service integration tests..."
 	set -a; . $(ENV_TEST); set +a;
 
 	docker exec $(POSTGRES_CONTAINER) psql -U $$POSTGRES_USER -d postgres \
@@ -76,9 +76,9 @@ books-integration-test:
 	docker exec $(POSTGRES_CONTAINER) psql -U $$POSTGRES_USER -d postgres \
 		-c "CREATE DATABASE $$POSTGRES_DB"
 
-	bunx nx integration-test books-api
+	bunx nx integration-test books-service
 
-	echo "Books-api integration tests completed."
+	echo "books-service integration tests completed."
 	echo "Stopping infra..."
 	$(DC) down
 
@@ -94,21 +94,19 @@ logs: ENV_FILE=$(ENV_DEV)
 logs:
 	$(DC) logs -f
 
-books-local:
+books-localprod:
 	@set -e
-	echo "Starting infra and local books-api..."
+	echo "Starting localprod stack (Postgres + books-api)..."
 
 	cleanup() {
 		echo ""
-		echo "Stopping books-api and infra..."
-		docker compose --env-file $(ENV_PROD) \
-			-f docker-compose.infra.yml \
-			-f docker-compose.local.yml \
+		echo "Stopping localprod stack..."
+		docker compose --env-file $(ENV_LOCALPROD) \
+			-f docker-compose.localprod.yml \
 			down
 	}
 	trap cleanup INT TERM EXIT
 
-	docker compose --env-file $(ENV_PROD) \
-		-f docker-compose.infra.yml \
-		-f docker-compose.local.yml \
+	docker compose --env-file $(ENV_LOCALPROD) \
+		-f docker-compose.localprod.yml \
 		up --build

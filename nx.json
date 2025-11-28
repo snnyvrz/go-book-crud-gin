@@ -12,7 +12,7 @@
         }
     },
     "projects": {
-        "books-api": "apps/books-api",
-        "auth-api": "apps/auth-api"
+        "books-service": "apps/books-service",
+        "auth-service": "apps/auth-service"
     }
 }

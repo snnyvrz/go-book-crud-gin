@@ -14,9 +14,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/handler"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/repository"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/handler"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/model"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/repository"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

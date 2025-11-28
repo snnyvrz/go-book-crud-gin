@@ -17,8 +17,8 @@ env:
     BUN_VERSION: "1.3.3"
 
 jobs:
-    books_api_unit:
-        name: books-api unit tests & coverage (Nx + Go)
+    books-service_unit:
+        name: books-service unit tests & coverage (Nx + Go)
         runs-on: ubuntu-latest
 
         steps:
@@ -43,7 +43,7 @@ jobs:
                   path: |
                       ~/.cache/go-build
                       ~/go/pkg/mod
-                  key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('apps/books-api/go.sum') }}
+                  key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('apps/books-service/go.sum') }}
                   restore-keys: |
                       ${{ runner.os }}-go-${{ env.GO_VERSION }}-
 
@@ -51,23 +51,23 @@ jobs:
               run: bun install --frozen-lockfile
 
             - name: Generate Swagger docs via Nx
-              run: bunx nx swagger books-api --skip-nx-cache
+              run: bunx nx swagger books-service --skip-nx-cache
 
-            - name: Run books-api coverage via Nx
-              run: bunx nx coverage books-api --skip-nx-cache
+            - name: Run books-service coverage via Nx
+              run: bunx nx coverage books-service --skip-nx-cache
 
             - name: Upload coverage artifacts
               uses: actions/upload-artifact@v4
               with:
-                  name: books-api-coverage
+                  name: books-service-coverage
                   path: |
-                      apps/books-api/coverage/coverage.out
-                      apps/books-api/coverage/coverage.html
+                      apps/books-service/coverage/coverage.out
+                      apps/books-service/coverage/coverage.html
 
-    books_api_integration:
-        name: books-api integration tests (Docker + Postgres)
+    books-service_integration:
+        name: books-service integration tests (Docker + Postgres)
         runs-on: ubuntu-latest
-        needs: books_api_unit
+        needs: books-service_unit
 
         steps:
             - name: Checkout repository
@@ -89,7 +89,7 @@ jobs:
                   path: |
                       ~/.cache/go-build
                       ~/go/pkg/mod
-                  key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('apps/books-api/go.sum') }}
+                  key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('apps/books-service/go.sum') }}
                   restore-keys: |
                       ${{ runner.os }}-go-${{ env.GO_VERSION }}-
 
@@ -97,7 +97,7 @@ jobs:
               run: bun install --frozen-lockfile
 
             - name: Generate Swagger docs via Nx
-              run: bunx nx swagger books-api --skip-nx-cache
+              run: bunx nx swagger books-service --skip-nx-cache
 
             - name: Run integration tests via Makefile
               run: make books-integration-test

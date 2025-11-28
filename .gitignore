@@ -16,7 +16,3 @@ docs/
 .nx/cache
 .nx/workspace-data
 .github/instructions/nx.instructions.md
-
-.terraform/
-*.tfstate
-*.tfstate.*

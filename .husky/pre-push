@@ -1,4 +1,4 @@
-bunx nx test books-api
+bunx nx test books-service
 
 if [ $? -ne 0 ]; then
   exit 1

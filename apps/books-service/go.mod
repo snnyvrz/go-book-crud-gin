@@ -1,4 +1,4 @@
-module github.com/snnyvrz/shelfshare/apps/books-api
+module github.com/snnyvrz/shelfshare/apps/books-service
 
 go 1.25.4
 

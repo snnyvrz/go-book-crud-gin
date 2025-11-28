@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/repository"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/validation"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/model"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/repository"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/validation"
 	"gorm.io/gorm"
 )
 

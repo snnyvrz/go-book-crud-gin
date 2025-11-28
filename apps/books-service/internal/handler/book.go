@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/model"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/repository"
-	"github.com/snnyvrz/shelfshare/apps/books-api/internal/validation"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/model"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/repository"
+	"github.com/snnyvrz/shelfshare/apps/books-service/internal/validation"
 	"gorm.io/gorm"
 )
 
