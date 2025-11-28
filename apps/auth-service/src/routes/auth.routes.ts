@@ -1,8 +1,8 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { authMiddleware } from "../middlewares";
-import { signToken } from "../helpers";
-import type { User } from "../types";
+import { authMiddleware } from "@auth/middlewares/auth.middleware";
+import { signToken } from "@auth/helpers/auth.helpers";
+import type { User } from "@auth/types/auth.types";
 
 const router = Router();
 
@@ -71,15 +71,8 @@ router.post("/login", async (req: Request, res: Response) => {
     });
 });
 
-router.get(
-    "/me",
-    authMiddleware,
-    (
-        req: Request & { user?: Record<string, unknown> | string },
-        res: Response
-    ) => {
-        return res.json({ user: req.user });
-    }
-);
+router.get("/me", authMiddleware, (req: Request, res: Response) => {
+    return res.json({ user: req.user });
+});
 
 export { router };
