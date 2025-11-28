@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -33,7 +32,7 @@ func Load() *Config {
 		DBSSLMode: "disable",
 	}
 
-	if strings.Contains(cfg.DBHost, "rds.amazonaws.com") {
+	if cfg.GinMode == "release" {
 		cfg.DBSSLMode = "require"
 	}
 
