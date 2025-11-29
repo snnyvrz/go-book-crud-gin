@@ -1,78 +1,48 @@
+// src/routes/auth.ts
 import { Router } from "express";
-import type { Request, Response } from "express";
-import { authMiddleware } from "@auth/middlewares/auth.middleware";
+import { UserModel } from "@auth/models/User";
 import { signToken } from "@auth/helpers/auth.helpers";
-import type { User } from "@auth/types/auth.types";
 
 const router = Router();
 
-const users: User[] = [];
-
-router.post("/register", async (req: Request, res: Response) => {
-    const { email, password } = req.body as {
-        email?: string;
-        password?: string;
-    };
+router.post("/register", async (req, res) => {
+    const { email, password } = req.body as { email: string; password: string };
 
     if (!email || !password) {
-        return res
-            .status(400)
-            .json({ error: "email and password are required" });
+        return res.status(400).json({ message: "Email and password required" });
     }
 
-    const existing = users.find((u) => u.email === email);
+    const existing = await UserModel.findOne({ email });
     if (existing) {
-        return res.status(409).json({ error: "User already exists" });
+        return res.status(409).json({ message: "User already exists" });
     }
 
     const passwordHash = await Bun.password.hash(password);
-    const user: User = {
-        id: crypto.randomUUID(),
+
+    const user = await UserModel.create({
         email,
         passwordHash,
-    };
-    users.push(user);
-
-    const token = signToken(user);
-
-    return res.status(201).json({
-        user: { id: user.id, email: user.email },
-        token,
     });
+
+    return res.status(201).json(user);
 });
 
-router.post("/login", async (req: Request, res: Response) => {
-    const { email, password } = req.body as {
-        email?: string;
-        password?: string;
-    };
+router.post("/login", async (req, res) => {
+    const { email, password } = req.body as { email: string; password: string };
 
-    if (!email || !password) {
-        return res
-            .status(400)
-            .json({ error: "email and password are required" });
-    }
-
-    const user = users.find((u) => u.email === email);
+    const user = await UserModel.findOne({ email });
     if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const ok = await Bun.password.verify(password, user.passwordHash);
-    if (!ok) {
-        return res.status(401).json({ error: "Invalid credentials" });
+    const match = await Bun.password.verify(password, user.passwordHash);
+    if (!match) {
+        return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const token = signToken(user);
 
-    return res.json({
-        user: { id: user.id, email: user.email },
-        token,
-    });
-});
-
-router.get("/me", authMiddleware, (req: Request, res: Response) => {
-    return res.json({ user: req.user });
+    return res.json({ token, user });
 });
 
 export { router };

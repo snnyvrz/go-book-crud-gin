@@ -26,15 +26,16 @@ services:
         container_name: shelfshare-mongo
         restart: unless-stopped
         environment:
-            MONGO_USERNAME: ${MONGO_USERNAME}
-            MONGO_PASSWORD: ${MONGO_PASSWORD}
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+            MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
         ports:
             - "27017:27017"
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
-                    'mongo --username $MONGO_USERNAME --password $MONGO_PASSWORD --eval ''db.adminCommand("ping")''',
+                    'mongo --username ${MONGO_INITDB_ROOT_USERNAME} --password ${MONGO_INITDB_ROOT_PASSWORD} --eval ''db.adminCommand("ping")''',
                 ]
             interval: 5s
             timeout: 3s
