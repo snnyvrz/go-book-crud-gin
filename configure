@@ -116,8 +116,13 @@ ok "All requirements satisfied 🎉"
 
 # Make scripts executable
 if [ -d scripts ]; then
+    echo
     echo "Making all scripts/*.sh executable..."
     chmod +x scripts/*.sh 2>/dev/null || true
+    echo
+    echo "Scripts are ready to go..."
+    echo
+    echo "Let's build and run the project!"
 fi
 
 # write a stamp file so make knows configure succeeded
