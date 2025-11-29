@@ -6,6 +6,13 @@ SHELL := /bin/bash
 CONFIG_STAMP := .configured
 
 .PHONY: check_configured
+ifeq ($(CI),true)
+
+check_configured:
+	@:
+
+else
+
 check_configured:
 	@if [ ! -f "$(CONFIG_STAMP)" ]; then \
 		echo "Please run the configure script before using any make commands:"; \
@@ -15,6 +22,9 @@ check_configured:
 		echo ""; \
 		exit 1; \
 	fi
+
+
+endif
 
 .PHONY: help
 help: check_configured
