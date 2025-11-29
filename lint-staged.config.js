@@ -4,4 +4,6 @@ export default {
     "*.go": (files) => [`gofmt -w ${files.join(" ")}`],
 
     "*.sh": ["shfmt -ci -i 4 -w"],
+
+    "*.{json,md,css,scss,html,yml,yaml}": ["bun x prettier --write"],
 };
