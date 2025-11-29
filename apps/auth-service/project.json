@@ -9,7 +9,8 @@
             "executor": "nx:run-commands",
             "options": {
                 "cwd": "apps/auth-service",
-                "command": "bun src/index.ts"
+                "command": "bun --watch src/index.ts",
+                "tsConfig": "apps/auth-service/tsconfig.dev.json"
             }
         }
     }
