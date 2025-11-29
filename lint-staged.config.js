@@ -3,5 +3,5 @@ export default {
 
     "*.go": (files) => [`gofmt -w ${files.join(" ")}`],
 
-    "*.sh": ["shfmt -w"],
+    "*.sh": ["shfmt -ci -i 4 -w"],
 };
