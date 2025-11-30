@@ -8,14 +8,9 @@ services:
             POSTGRES_USER: ${POSTGRES_USER}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
         ports:
-            # host:container
-            - "${LOCALPROD_POSTGRES_PORT:-55432}:5432"
+            - "${POSTGRES_PORT:-5432}:5432"
         healthcheck:
-            test:
-                [
-                    "CMD-SHELL",
-                    "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
-                ]
+            test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
             interval: 5s
             timeout: 3s
             retries: 10
@@ -32,14 +27,16 @@ services:
             postgres:
                 condition: service_healthy
         environment:
-            POSTGRES_HOST: postgres
-            POSTGRES_PORT: 5432
+            ENV: ${ENV}
+            GIN_MODE: ${GIN_MODE}
+            TZ: ${TZ}
+            POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+            POSTGRES_PORT: ${POSTGRES_PORT:-5432}
             POSTGRES_DB: ${POSTGRES_DB}
             POSTGRES_USER: ${POSTGRES_USER}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-            APP_ENV: localprod
         ports:
-            - "${LOCALPROD_BOOKS_SERVICE_PORT:-8081}:8080"
+            - "${BOOKS_SERVICE_PORT:-8080}:8080"
 
 volumes:
     shelfshare_pg_data_localprod:
