@@ -33,7 +33,7 @@ spec:
             {{- range $key, $val := .Values.env }}
             - name: {{ $key }}
               value: "{{ $val }}"
-          {{- end }}
+            {{- end }}
           {{- if .Values.existingEnvSecret }}
           envFrom:
             - secretRef:
