@@ -4,15 +4,11 @@ metadata:
   name: shelfshare-postgres
   namespace: shelfshare-localprod
 spec:
-  interval: 5m
-  chart:
-    spec:
-      chart: postgresql
-      version: ">=18.1.13"
-      sourceRef:
-        kind: HelmRepository
-        name: bitnami-charts
-        namespace: shelfshare-localprod
+  interval: 10m
+  chartRef:
+    kind: OCIRepository
+    name: bitnami-postgresql
+    namespace: shelfshare-localprod
   valuesFrom:
     - kind: Secret
       name: shelfshare-postgres-values
