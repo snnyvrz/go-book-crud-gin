@@ -24,4 +24,4 @@ existingEnvSecret: books-service-secret
 
 env:
   GIN_MODE: release
-  TZ: UTC
+  TZ: Europe/Berlin
