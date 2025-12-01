@@ -15,7 +15,7 @@ spec:
   values:
     image:
       repository: ghcr.io/snnyvrz/shelfshare-books-service # {"$imagepolicy": "flux-system:books-service:name"}
-      tag: "latest" # {"$imagepolicy": "flux-system:books-service:tag"}
+      tag: 0.1.0 # {"$imagepolicy": "flux-system:books-service"}
 
     imagePullSecrets:
       - name: ghcr-credentials

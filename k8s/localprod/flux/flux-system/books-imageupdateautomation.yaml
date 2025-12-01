@@ -25,5 +25,5 @@ spec:
     push:
       branch: main
   update:
-    path: ./clusters/localprod
+    path: ./k8s/localprod
     strategy: Setters
