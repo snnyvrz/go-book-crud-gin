@@ -18,11 +18,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      {{- with .Values.imagePullSecrets }}
+      {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
-        {{- range . }}
-        - name: {{ .name }}
-        {{- end }}
+        {{ toYaml .Values.imagePullSecrets | indent 8 }}
       {{- end }}
       containers:
         - name: books-service
