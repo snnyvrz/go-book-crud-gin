@@ -79,7 +79,7 @@ books auth:
 .PHONY: books-coverage
 books-coverage: check_configured
 books-coverage: ## Run books-service coverage and open report
-	bunx nx coverage books-service
+	bun x nx affected --target=coverage
 	nohup xdg-open apps/books-service/coverage/coverage.html >/dev/null 2>&1 & echo "" || true
 
 .PHONY: books-integration-test
@@ -100,7 +100,7 @@ books-integration-test: ## Run books-service integration tests with infra
 	docker exec $(POSTGRES_CONTAINER) psql -U $$POSTGRES_USER -d postgres \
 		-c "CREATE DATABASE $$POSTGRES_DB"
 
-	bunx nx integration-test books-service
+	bun x nx affected --target=integration-test
 
 	echo "books-service integration tests completed."
 	echo "Stopping infra..."

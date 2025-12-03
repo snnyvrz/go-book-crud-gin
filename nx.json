@@ -5,12 +5,10 @@
     "packageManager": "bun",
     "tasksRunnerOptions": {
         "default": {
-            "runner": "nx/tasks-runners/default",
-            "options": {
-                "cacheableOperations": ["test", "build", "swagger"]
-            }
+            "runner": "nx/tasks-runners/default"
         }
     },
+    "plugins": ["@nx/js", "@nx-go/nx-go"],
     "projects": {
         "books-service": "apps/books-service",
         "auth-service": "apps/auth-service"

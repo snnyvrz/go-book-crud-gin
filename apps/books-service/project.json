@@ -21,7 +21,8 @@
             "options": {
                 "command": "go run github.com/swaggo/swag/cmd/swag@latest init -d cmd/server,internal/handler,internal/model,internal/validation -o internal/docs",
                 "cwd": "apps/books-service"
-            }
+            },
+            "outputs": ["{projectRoot}/internal/docs"]
         },
         "test": {
             "executor": "nx:run-commands",
@@ -29,14 +30,17 @@
                 "command": "mkdir -p coverage && go test -coverprofile=coverage/coverage.out ./...",
                 "cwd": "apps/books-service"
             },
-            "cache": false
+            "inputs": ["default"],
+            "outputs": ["{projectRoot}/coverage"]
         },
         "integration-test": {
             "executor": "nx:run-commands",
             "options": {
                 "command": "go test -tags=integration ./...",
                 "cwd": "apps/books-service"
-            }
+            },
+            "inputs": ["default"],
+            "outputs": []
         },
         "coverage": {
             "executor": "nx:run-commands",
@@ -45,7 +49,8 @@
                 "cwd": "apps/books-service"
             },
             "dependsOn": ["test"],
-            "cache": false
+            "cache": false,
+            "outputs": ["{projectRoot}/coverage"]
         }
     }
 }
