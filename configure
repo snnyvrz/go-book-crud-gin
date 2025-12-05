@@ -215,6 +215,8 @@ if [ -d scripts ]; then
     echo "Making all scripts/*.sh executable..."
     chmod +x scripts/*.sh 2>/dev/null || true
     echo
+    echo "Configuring git..."
+    ./scripts/config-git.sh
     echo "Scripts are ready to go..."
     echo
     echo "Let's build and run the project!"
