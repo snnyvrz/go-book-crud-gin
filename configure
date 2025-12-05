@@ -28,6 +28,7 @@ REQUIRED_AIR="1.63.0"
 REQUIRED_SHFMT="3.12.0"
 REQUIRED_BUN="1.3.3"
 REQUIRED_DOCKER="28.4.0"
+REQUIRED_SOPS="3.11.0"
 
 # ========= version compare: v1 >= v2 ? =========
 version_ge() {
@@ -88,6 +89,9 @@ tool_install_hint() {
             ;;
         docker)
             echo "  Install Docker: https://docs.docker.com/get-docker/"
+            ;;
+        sops)
+            echo "  Install sops: https://github.com/getsops/sops"
             ;;
         *)
             echo "  Please install '$1' from its official website."
@@ -194,7 +198,28 @@ else
 fi
 echo
 
-ok "All requirements satisfied 🎉"
+# -------- SOPS --------
+require_cmd sops
+
+SOPS_VERSION="$(
+    sops --version 2>/dev/null |
+        head -n1 |
+        awk '{print $2}' |
+        sed 's/^v//'
+)"
+
+info "Detected sops version: $SOPS_VERSION (required >= $REQUIRED_SOPS)"
+
+if version_ge "$SOPS_VERSION" "$REQUIRED_SOPS"; then
+    ok "sops version OK"
+else
+    err "sops version $SOPS_VERSION is less than required $REQUIRED_SOPS"
+    echo
+    tool_install_hint "sops"
+    echo
+    exit 1
+fi
+echo
 
 # -------- Install JS dependencies with bun --------
 echo
@@ -214,13 +239,14 @@ if [ -d scripts ]; then
     echo
     echo "Making all scripts/*.sh executable..."
     chmod +x scripts/*.sh 2>/dev/null || true
+    echo "Scripts are ready to go..."
     echo
     echo "Configuring git..."
     ./scripts/config-git.sh
-    echo "Scripts are ready to go..."
     echo
-    echo "Let's build and run the project!"
 fi
+
+ok "ShelfShare configured successfully!"
 
 # write a stamp file so make knows configure succeeded
 echo "configured on $(date)" >.configured
