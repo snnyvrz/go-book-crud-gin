@@ -20,7 +20,7 @@ case "$SERVICE" in
 
         echo "Starting books-service via Nx (Ctrl+C to stop everything)..."
         cd apps/books-service
-        bunx nx serve books-service || true
+        bun x nx serve books-service || true
         ;;
 
     auth)
@@ -35,7 +35,7 @@ case "$SERVICE" in
 
         echo "Starting auth-service via Nx (Ctrl+C to stop everything)..."
         cd apps/auth-service
-        bunx serve auth-service || true
+        bun x serve auth-service --watch || true
         ;;
 
     "")

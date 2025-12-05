@@ -1,6 +1,3 @@
-(
-  cd apps/books-service || exit 1
-  go vet ./...
-)
+scripts/sops.sh encrypt-staged
 
 bun x lint-staged

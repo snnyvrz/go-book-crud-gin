@@ -1,7 +1,11 @@
 export default {
     "*.{js,mjs,ts,tsx}": ["bun x eslint --fix", "bun x prettier --write"],
 
-    "*.go": (files) => [`gofmt -w ${files.join(" ")}`],
+    "*.go": (files) => [
+        ...files.map((f) => `go fix ${f}`),
+        `gofmt -w ${files.join(" ")}`,
+        "cd apps/books-service && go vet ./...",
+    ],
 
     "*.sh": ["shfmt -ci -i 4 -w"],
 

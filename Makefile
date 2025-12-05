@@ -79,7 +79,7 @@ books auth:
 .PHONY: books-coverage
 books-coverage: check_configured
 books-coverage: ## Run books-service coverage and open report
-	bunx nx coverage books-service
+	bun x nx affected --target=coverage
 	nohup xdg-open apps/books-service/coverage/coverage.html >/dev/null 2>&1 & echo "" || true
 
 .PHONY: books-integration-test
@@ -100,7 +100,7 @@ books-integration-test: ## Run books-service integration tests with infra
 	docker exec $(POSTGRES_CONTAINER) psql -U $$POSTGRES_USER -d postgres \
 		-c "CREATE DATABASE $$POSTGRES_DB"
 
-	bunx nx integration-test books-service
+	bun x nx affected --target=integration-test
 
 	echo "books-service integration tests completed."
 	echo "Stopping infra..."
@@ -142,6 +142,16 @@ books-localprod: ## Run local production stack (Postgres + books-api)
 	docker compose --env-file $(ENV_LOCALPROD) \
 		-f docker-compose.localprod.yml \
 		up --build
+
+.PHONY: decrypt-secrets
+decrypt-secrets: check_configured
+decrypt-secrets: ## Decrypt secrets using sops
+	./scripts/sops.sh decrypt $(filter-out $@,$(MAKECMDGOALS))
+
+.PHONY: encrypt-secrets
+encrypt-secrets: check_configured
+encrypt-secrets: ## Encrypt secrets using sops
+	./scripts/sops.sh encrypt $(filter-out $@,$(MAKECMDGOALS))
 
 .PHONY: configure-force
 configure-force: ## Force re-running the configure script

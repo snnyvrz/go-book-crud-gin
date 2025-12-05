@@ -1,87 +1,62 @@
 name: CI
 
 on:
-    push:
-        branches:
-            - main
-            - dev
-            - "feature/**"
-    pull_request:
+  push:
+    branches:
+      - main
+      - dev
+      - "feature/**"
+  pull_request:
 
 concurrency:
-    group: ci-${{ github.ref }}
-    cancel-in-progress: true
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
-    GO_VERSION: "1.25.4"
-    BUN_VERSION: "1.3.3"
+  GO_VERSION: "1.25.4"
+  BUN_VERSION: "1.3.3"
+  NX_BASE: origin/main
+  NX_HEAD: HEAD
 
 jobs:
-    books-service_unit:
-        name: books-service unit tests & coverage (Nx + Go)
-        runs-on: ubuntu-latest
+  books-service_tests:
+    name: books-service unit tests & coverage (Nx + Go) & integration tests
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
-              with:
-                  bun-version: ${{ env.BUN_VERSION }}
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
 
-            - name: Setup Go
-              uses: actions/setup-go@v5
-              with:
-                  go-version: ${{ env.GO_VERSION }}
-                  cache: true
-                  cache-dependency-path: apps/books-service/go.sum
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: apps/books-service/go.sum
 
-            - name: Install JS/TS dependencies
-              run: bun install --frozen-lockfile
+      - name: Install JS/TS dependencies
+        run: bun install --frozen-lockfile
 
-            - name: Generate Swagger docs via Nx
-              run: bunx nx swagger books-service --skip-nx-cache
+      - name: Generate Swagger docs via Nx
+        run: bun x nx affected --target=swagger
 
-            - name: Run books-service coverage via Nx
-              run: bunx nx coverage books-service --skip-nx-cache
+      - name: Run books-service coverage via Nx
+        run: bun x nx affected --target=coverage
 
-            - name: Upload coverage artifacts
-              uses: actions/upload-artifact@v4
-              with:
-                  name: books-service-coverage
-                  path: |
-                      apps/books-service/coverage/coverage.out
-                      apps/books-service/coverage/coverage.html
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: books-service-coverage
+          path: |
+            apps/books-service/coverage/coverage.out
+            apps/books-service/coverage/coverage.html
 
-    books-service_integration:
-        name: books-service integration tests (Docker + Postgres)
-        runs-on: ubuntu-latest
-        needs: books-service_unit
-
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
-              with:
-                  bun-version: ${{ env.BUN_VERSION }}
-
-            - name: Setup Go
-              uses: actions/setup-go@v5
-              with:
-                  go-version: ${{ env.GO_VERSION }}
-                  cache: true
-                  cache-dependency-path: apps/books-service/go.sum
-
-            - name: Install JS/TS dependencies
-              run: bun install --frozen-lockfile
-
-            - name: Generate Swagger docs via Nx
-              run: bunx nx swagger books-service --skip-nx-cache
-
-            - name: Run integration tests via Makefile
-              run: make books-integration-test
+      - name: Run integration tests via Makefile
+        run: make books-integration-test
